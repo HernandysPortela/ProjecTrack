@@ -1,0 +1,6 @@
+{
+  "file_paths": [
+    "convex/tasks.ts"
+  ],
+  "replace_files_in_context": true
+}

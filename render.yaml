@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: projectrak-frontend
+    runtime: node
+    buildCommand: pnpm install && pnpm run build
+    startCommand: npm install -g serve && serve -s dist
+    envVars:
+      - key: VITE_CONVEX_URL
+        scope: build
+      - key: NODE_ENV
+        value: production

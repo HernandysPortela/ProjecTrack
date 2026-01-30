@@ -1,0 +1,1 @@
+openssl genpkey -algorithm RSA -out private_key.pem -pkeyopt rsa_keygen_bits:2048; openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt -in private_key.pem

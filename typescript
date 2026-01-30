@@ -1,0 +1,24 @@
+// convex/tasks.ts
+// ... keep existing code
+
+export const reparentSubtask = mutation({
+  args: {
+    id: v.id("tasks"),
+    parentTaskId: v.union(v.id("tasks"), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthorized");
+
+    if (args.parentTaskId === null) {
+       // We need to unset the parentTaskId. 
+       // Since it's optional, we can't set it to null. We must remove the field.
+       const task = await ctx.db.get(args.id);
+       if (!task) throw new Error("Task not found");
+       const { parentTaskId, ...rest } = task;
+       await ctx.db.replace(args.id, rest);
+    } else {
+       await ctx.db.patch(args.id, { parentTaskId: args.parentTaskId });
+    }
+  },
+});

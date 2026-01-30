@@ -1,0 +1,10 @@
+node_modules
+.git
+.env
+.env.local
+dist
+.vite
+.eslintcache
+*.log
+.DS_Store
+Thumbs.db
