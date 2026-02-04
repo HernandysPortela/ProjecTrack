@@ -634,7 +634,6 @@ export default function Dashboard() {
         description: projectDescription,
         workgroupId: selectedWorkgroup._id,
         color: "#3b82f6", // Default color
-        managerId: projectManagerId || undefined,
         teamRestricted: projectTeamRestricted,
         allowedTeamIds: projectTeamRestricted ? projectAllowedTeamIds : [],
       });

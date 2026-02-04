@@ -37,3 +37,6 @@ node_modules/
 
 # Testing
 coverage
+
+# Vercel
+.vercel
