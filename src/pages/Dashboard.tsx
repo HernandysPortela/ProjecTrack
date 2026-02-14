@@ -6,6 +6,13 @@ import { useNavigate } from "react-router";
 import * as React from "react";
 import { useEffect, useState } from "react";
 import WorkgroupView from "@/pages/WorkgroupView";
+import TasksPage from "@/pages/Tasks";
+import TeamsPage from "@/pages/Teams";
+import InvitesPage from "@/pages/Invites";
+import UsersPage from "@/pages/Users";
+import SettingsPage from "@/pages/Settings";
+import RemindersPage from "@/pages/Reminders";
+import { TaskDetailsLoader } from "@/components/project/TaskDetailsLoader";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -369,7 +376,9 @@ export default function Dashboard() {
   const [taskPriorityFilter, setTaskPriorityFilter] = useState<"all" | "urgent" | "high" | "medium" | "low">("all");
   const [taskAssigneeFilter, setTaskAssigneeFilter] = useState<"all" | "me">("all");
   const [taskStatusFilter, setTaskStatusFilter] = useState<"all" | "active" | "todo" | "in-progress" | "review" | "done" | "blocked">("active");
+  const [taskDueDateFilter, setTaskDueDateFilter] = useState<"all" | "overdue" | "onTime">("all");
   const [taskSortBy, setTaskSortBy] = useState<"dueDate" | "priority">("dueDate");
+  const [selectedTaskForDetails, setSelectedTaskForDetails] = useState<{ id: Id<"tasks">; projectId: Id<"projects"> } | null>(null);
 
   const [isWorkspaceSettingsDialogOpen, setIsWorkspaceSettingsDialogOpen] = useState(false);
   const [workspaceForSettings, setWorkspaceForSettings] = useState<any>(null);
@@ -934,13 +943,38 @@ export default function Dashboard() {
   // Memoized filtered tasks - MOVED HERE
   const filteredTasks = useMemo(() => {
     // Choose the correct task list based on assignee filter
-    const taskList = taskAssigneeFilter === "me"
-      ? dashboardOverview?.myTasksList
-      : dashboardOverview?.myTasksList;
+    let taskList = [];
+    
+    if (taskAssigneeFilter === "me") {
+      taskList = dashboardOverview?.myTasksList || [];
+    } else if (taskAssigneeFilter === "all") {
+      // Combine myTasksList and myExternalTasksList for all tasks
+      const myTasks = dashboardOverview?.myTasksList || [];
+      const externalTasks = dashboardOverview?.myExternalTasksList || [];
+      taskList = [...myTasks, ...externalTasks];
+    } else if (taskAssigneeFilter === "unassigned") {
+      // Filter for unassigned tasks
+      const myTasks = dashboardOverview?.myTasksList || [];
+      const externalTasks = dashboardOverview?.myExternalTasksList || [];
+      const allTasks = [...myTasks, ...externalTasks];
+      taskList = allTasks.filter((task: any) => !task.assigneeId);
+    } else {
+      // Filter by specific user ID
+      const myTasks = dashboardOverview?.myTasksList || [];
+      const externalTasks = dashboardOverview?.myExternalTasksList || [];
+      const allTasks = [...myTasks, ...externalTasks];
+      taskList = allTasks.filter((task: any) => task.assigneeId === taskAssigneeFilter);
+    }
 
-    if (!taskList) return [];
+    if (!taskList || taskList.length === 0) return [];
 
     const filtered = taskList.filter((task: any) => {
+      // Excluir tarefas de projetos pausados ou finalizados
+      const project = dashboardOverview?.projects?.find((p: any) => p._id === task.projectId);
+      if (project && (project.status === "paused" || project.status === "finished")) {
+        return false;
+      }
+
       if (taskProjectFilter !== "all" && task.projectId !== taskProjectFilter) return false;
 
       if (taskPriorityFilter !== "all" && task.priority !== taskPriorityFilter) return false;
@@ -979,7 +1013,7 @@ export default function Dashboard() {
     });
 
     return sorted;
-  }, [dashboardOverview?.myTasksList, dashboardOverview?.myExternalTasksList, taskProjectFilter, taskPriorityFilter, taskAssigneeFilter, taskStatusFilter, taskSortBy]);
+  }, [dashboardOverview?.myTasksList, dashboardOverview?.myExternalTasksList, dashboardOverview?.projects, taskProjectFilter, taskPriorityFilter, taskAssigneeFilter, taskStatusFilter, taskSortBy]);
 
   const taskProjects = useMemo(() => {
     if (!dashboardOverview?.myTasksList) return [];
@@ -1483,158 +1517,26 @@ export default function Dashboard() {
         );
       case "tasks":
         return (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-3xl font-bold tracking-tight">{t('tasks.myTasks')}</h2>
-              <p className="text-muted-foreground">
-                {t('tasks.projectTasksDesc')}
-              </p>
-            </div>
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-4 flex-wrap">
-                  <Select value={taskAssigneeFilter} onValueChange={(value) => setTaskAssigneeFilter(value as "all" | "me")}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder={t('tasks.assignedTo')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{t('tasks.allTasks')}</SelectItem>
-                      <SelectItem value="me">{t('tasks.assignedToMe')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <Select value={taskProjectFilter} onValueChange={setTaskProjectFilter}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder={t('tasks.project')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{t('tasks.allProjects')}</SelectItem>
-                      {taskProjects.map((project) => (
-                        <SelectItem key={project.id} value={project.id}>
-                          {project.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Select value={taskPriorityFilter} onValueChange={(value) => setTaskPriorityFilter(value as "all" | "urgent" | "high" | "medium" | "low")}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder={t('tasks.priority')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{t('tasks.allPriorities')}</SelectItem>
-                      <SelectItem value="urgent">{t('tasks.urgent')}</SelectItem>
-                      <SelectItem value="high">{t('tasks.high')}</SelectItem>
-                      <SelectItem value="medium">{t('tasks.medium')}</SelectItem>
-                      <SelectItem value="low">{t('tasks.low')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <Select value={taskStatusFilter} onValueChange={(value) => setTaskStatusFilter(value as "all" | "active" | "todo" | "in-progress" | "review" | "done" | "blocked")}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder={t('tasks.statusFilter')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">{t('tasks.activeTasks')}</SelectItem>
-                      <SelectItem value="all">{t('tasks.allStatuses')}</SelectItem>
-                      <SelectItem value="todo">{t('tasks.toDo')}</SelectItem>
-                      <SelectItem value="in-progress">{t('tasks.inProgress')}</SelectItem>
-                      <SelectItem value="review">{t('tasks.review')}</SelectItem>
-                      <SelectItem value="done">{t('tasks.done')}</SelectItem>
-                      <SelectItem value="blocked">{t('tasks.blocked')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <Select value={taskSortBy} onValueChange={(value) => setTaskSortBy(value as "dueDate" | "priority")}>
-                    <SelectTrigger className="w-[180px]">
-                      <span>{t('tasks.sortBy')}</span>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="dueDate">{t('tasks.dueDate')}</SelectItem>
-                      <SelectItem value="priority">{t('tasks.priority')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {filteredTasks && filteredTasks.length > 0 ? (
-                  <div className="space-y-4">
-                    {filteredTasks.map((task) => {
-                      // Check if task is overdue
-                      const isOverdue = task.dueDate &&
-                        task.status !== 'done' &&
-                        new Date(task.dueDate) < new Date();
-
-                      return (
-                        <div
-                          key={task._id}
-                          className={`flex items-start justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors ${isOverdue ? 'border-red-300 bg-red-50/50' : ''
-                            }`}
-                        >
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-semibold">{task.title}</h3>
-                              {isOverdue && (
-                                <Badge variant="destructive" className="flex items-center gap-1">
-                                  <AlertCircle className="h-3 w-3" />
-                                  {t('tasks.overdue')}
-                                </Badge>
-                              )}
-                              <Badge variant={
-                                task.priority === "urgent" ? "destructive" :
-                                  task.priority === "high" ? "default" :
-                                    task.priority === "medium" ? "secondary" :
-                                      "outline"
-                              }>
-                                {task.priority === "urgent" ? t('tasks.urgent') :
-                                  task.priority === "high" ? t('tasks.high') :
-                                    task.priority === "medium" ? t('tasks.medium') :
-                                      task.priority === "low" ? t('tasks.low') :
-                                        task.priority}
-                              </Badge>
-                              <Badge variant="outline">{task.status}</Badge>
-                            </div>
-                            {task.description && (
-                              <p className="text-sm text-muted-foreground">{task.description}</p>
-                            )}
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                              <div className="flex items-center gap-1">
-                                <Briefcase className="h-3 w-3" />
-                                <span>{task.workgroupName}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <FolderKanban className="h-3 w-3" />
-                                <span>{task.projectName}</span>
-                              </div>
-                              {task.dueDate && (
-                                <div className="flex items-center gap-1">
-                                  <CalendarIcon className="h-3 w-3" />
-                                  <span>{new Date(task.dueDate).toLocaleDateString()}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <Button
-                            size="sm"
-                            onClick={() => navigate(`/project/${task.projectId}?taskId=${task._id}`)}
-                          >
-                            {t('tasks.viewTask')}
-                            <ArrowRight className="ml-2 h-4 w-4" />
-                          </Button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <CheckSquare className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>{t('tasks.noTasksAssigned')}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+          <TasksPage
+            filteredTasks={filteredTasks}
+            t={t}
+            navigate={navigate}
+            setSelectedTaskForDetails={setSelectedTaskForDetails}
+            taskAssigneeFilter={taskAssigneeFilter}
+            setTaskAssigneeFilter={setTaskAssigneeFilter}
+            taskProjectFilter={taskProjectFilter}
+            setTaskProjectFilter={setTaskProjectFilter}
+            taskPriorityFilter={taskPriorityFilter}
+            setTaskPriorityFilter={setTaskPriorityFilter}
+            taskStatusFilter={taskStatusFilter}
+            setTaskStatusFilter={setTaskStatusFilter}
+            taskDueDateFilter={taskDueDateFilter}
+            setTaskDueDateFilter={setTaskDueDateFilter}
+            taskSortBy={taskSortBy}
+            setTaskSortBy={setTaskSortBy}
+            taskProjects={taskProjects}
+            members={allUsers}
+          />
         );
       case "teams":
         return (
@@ -2136,6 +2038,14 @@ export default function Dashboard() {
   return (
     <SidebarProvider>
       <div className="min-h-screen w-full flex">
+        {selectedTaskForDetails && (
+          <TaskDetailsLoader
+            taskId={selectedTaskForDetails.id}
+            projectId={selectedTaskForDetails.projectId}
+            open={!!selectedTaskForDetails}
+            onOpenChange={(open) => !open && setSelectedTaskForDetails(null)}
+          />
+        )}
         <Sidebar>
           <SidebarHeader className="border-b p-4">
             <div className="flex items-center gap-3">
