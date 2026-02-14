@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { TrendingUpIcon, Check, X, Edit2, ExternalLink, Download, Search, Filter } from "lucide-react";
+import { TrendingUpIcon, Check, X, Edit2, ExternalLink, Download, Search, Filter, FolderKanban } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -182,66 +182,128 @@ export default function ProjectsSection() {
 
   return (
     <div className="container mx-auto p-6 max-w-full">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <div>
-            <CardTitle>{t("projects.title")}</CardTitle>
+      {/* Cabeçalho moderno */}
+      <div className="mb-8 bg-gradient-to-br from-background via-background to-primary/5 rounded-xl p-6 border border-border/50 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <FolderKanban className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+                {t("projects.title")}
+              </h2>
+              <p className="text-muted-foreground text-sm mt-1">Gerencie e acompanhe todos os seus projetos</p>
+            </div>
           </div>
           <Button
             onClick={handleExportToExcel}
-            variant="outline"
+            variant="outline" 
             size="sm"
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 hover:bg-primary/10 hover:text-primary hover:border-primary/40 transition-all duration-200"
           >
             <Download className="h-4 w-4" />
             {t("projects.exportToExcel")}
           </Button>
+        </div>
+      </div>
+
+      <Card className="border-0 shadow-lg overflow-hidden rounded-xl">
+        <CardHeader className="pb-6 bg-gradient-to-r from-background to-muted/20 border-b">
+          <div className="space-y-1">
+            <CardTitle className="text-xl font-bold flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-primary animate-pulse"></div>
+              Filtros e Busca
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">Encontre rapidamente o projeto que precisa</p>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {/* Filters */}
-          <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder={t("projects.searchByName")}
-                value={searchName}
-                onChange={(e) => setSearchName(e.target.value)}
-                className="pl-9"
-              />
+          <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-foreground/70 flex items-center gap-1.5">
+                <Search className="h-3.5 w-3.5" />
+                Nome do Projeto
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={t("projects.searchByName")}
+                  value={searchName}
+                  onChange={(e) => setSearchName(e.target.value)}
+                  className="pl-9 hover:bg-muted/50 transition-all border-border/60 hover:border-primary/40 h-10"
+                />
+              </div>
             </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder={t("projects.searchByOwner")}
-                value={searchOwner}
-                onChange={(e) => setSearchOwner(e.target.value)}
-                className="pl-9"
-              />
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-foreground/70 flex items-center gap-1.5">
+                <Search className="h-3.5 w-3.5" />
+                Proprietário
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={t("projects.searchByOwner")}
+                  value={searchOwner}
+                  onChange={(e) => setSearchOwner(e.target.value)}
+                  className="pl-9 hover:bg-muted/50 transition-all border-border/60 hover:border-primary/40 h-10"
+                />
+              </div>
             </div>
-            <div className="relative">
-              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="pl-9">
-                  <SelectValue placeholder={t("projects.filterByStatus")} />
-                </SelectTrigger>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-foreground/70 flex items-center gap-1.5">
+                <Filter className="h-3.5 w-3.5" />
+                Status
+              </label>
+              <div className="relative">
+                <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+                <Select value={filterStatus} onValueChange={setFilterStatus}>
+                  <SelectTrigger className="pl-9 hover:bg-muted/50 transition-all border-border/60 hover:border-primary/40 h-10">
+                    <SelectValue placeholder={t("projects.filterByStatus")} />
+                  </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">{t("projects.allStatuses")}</SelectItem>
-                  <SelectItem value="in_progress">{t("projects.inProgress")}</SelectItem>
-                  <SelectItem value="paused">{t("projects.paused")}</SelectItem>
-                  <SelectItem value="finished">{t("projects.finished")}</SelectItem>
-                </SelectContent>
-              </Select>
+                    <SelectItem value="all">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-muted-foreground" />
+                        {t("projects.allStatuses")}
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="in_progress">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-blue-500" />
+                        {t("projects.inProgress")}
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="paused">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-yellow-500" />
+                        {t("projects.paused")}
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="finished">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-green-500" />
+                        {t("projects.finished")}
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
           {/* Results counter and clear button */}
-          <div className="mb-4 flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">
+          <div className="mb-6 flex items-center justify-between p-3 bg-muted/20 rounded-lg border border-border/30">
+            <div className="text-sm font-medium text-foreground/80 flex items-center gap-2">
               {filteredAndSortedProjects && filteredAndSortedProjects.length > 0 && (
-                <span>
-                  {filteredAndSortedProjects.length} {filteredAndSortedProjects.length === 1 ? t("projects.project") : t("projects.projects")}
-                  {(searchName || searchOwner || filterStatus !== "all") && ` ${t("projects.found")}`}
-                </span>
+                <>
+                  <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                  <span>
+                    {filteredAndSortedProjects.length} {filteredAndSortedProjects.length === 1 ? t("projects.project") : t("projects.projects")}
+                    {(searchName || searchOwner || filterStatus !== "all") && ` ${t("projects.found")}`}
+                  </span>
+                </>
               )}
             </div>
             {(searchName || searchOwner || filterStatus !== "all") && (
@@ -253,6 +315,7 @@ export default function ProjectsSection() {
                   setSearchOwner("");
                   setFilterStatus("all");
                 }}
+                className="hover:bg-destructive/10 hover:text-destructive transition-colors"
               >
                 <X className="h-4 w-4 mr-1" />
                 {t("projects.clearFilters")}
@@ -261,24 +324,30 @@ export default function ProjectsSection() {
           </div>
 
           {!filteredAndSortedProjects || filteredAndSortedProjects.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              {projects && projects.length > 0 ? t("projects.noMatchingProjects") : t("projects.noProjects")}
+            <div className="text-center py-16">
+              <div className="inline-block p-4 bg-muted/30 rounded-full mb-4">
+                <FolderKanban className="h-12 w-12 text-muted-foreground/50" />
+              </div>
+              <p className="text-lg font-medium text-foreground/70 mb-1">
+                {projects && projects.length > 0 ? t("projects.noMatchingProjects") : t("projects.noProjects")}
+              </p>
+              <p className="text-sm text-muted-foreground">Tente ajustar os filtros ou criar um novo projeto</p>
             </div>
           ) : (
-            <div className="rounded-md border">
+            <div className="rounded-lg border border-border/50 overflow-hidden shadow-sm">
               <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[40px]"></TableHead>
-                    <TableHead>{t("projects.projectName")}</TableHead>
-                    <TableHead>{t("projects.description")}</TableHead>
-                    <TableHead className="text-center">{t("projects.priority")}</TableHead>
-                    <TableHead>{t("projects.startQuarter")}</TableHead>
-                    <TableHead>{t("projects.startDate")}</TableHead>
-                    <TableHead>{t("projects.endDate")}</TableHead>
-                    <TableHead>{t("projects.owner")}</TableHead>
-                    <TableHead className="text-center">{t("projects.approval")}</TableHead>
-                    <TableHead className="text-center">{t("projects.actions")}</TableHead>
+                <TableHeader className="bg-gradient-to-r from-muted/50 to-muted/30">
+                  <TableRow className="hover:bg-transparent border-b border-border/50">
+                    <TableHead className="w-[40px] font-semibold text-foreground/90"></TableHead>
+                    <TableHead className="font-semibold text-foreground/90">{t("projects.projectName")}</TableHead>
+                    <TableHead className="font-semibold text-foreground/90">{t("projects.description")}</TableHead>
+                    <TableHead className="text-center font-semibold text-foreground/90">{t("projects.priority")}</TableHead>
+                    <TableHead className="font-semibold text-foreground/90">{t("projects.startQuarter")}</TableHead>
+                    <TableHead className="font-semibold text-foreground/90">{t("projects.startDate")}</TableHead>
+                    <TableHead className="font-semibold text-foreground/90">{t("projects.endDate")}</TableHead>
+                    <TableHead className="font-semibold text-foreground/90">{t("projects.owner")}</TableHead>
+                    <TableHead className="text-center font-semibold text-foreground/90">{t("projects.approval")}</TableHead>
+                    <TableHead className="text-center font-semibold text-foreground/90">{t("projects.actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -287,14 +356,14 @@ export default function ProjectsSection() {
                     const isEditing = editingPriority === project._id;
 
                     return (
-                      <TableRow key={project._id} className="hover:bg-muted/50">
+                      <TableRow key={project._id} className="hover:bg-gradient-to-r hover:from-muted/30 hover:to-primary/5 transition-all duration-200 border-b border-border/30 group">
                         <TableCell>
                           <div
-                            className="w-4 h-4 rounded-full"
+                            className="w-5 h-5 rounded-full shadow-md ring-2 ring-background group-hover:scale-110 transition-transform duration-200"
                             style={{ backgroundColor: project.color }}
                           />
                         </TableCell>
-                        <TableCell className="font-medium">{project.name}</TableCell>
+                        <TableCell className="font-semibold text-foreground/90 group-hover:text-foreground transition-colors">{project.name}</TableCell>
                         <TableCell className="max-w-xs">
                           <div className="flex items-center gap-2">
                             <span className="truncate flex-1">
@@ -385,7 +454,7 @@ export default function ProjectsSection() {
                           ) : (
                             <div className="flex items-center justify-center gap-2">
                               {project.priority ? (
-                                <Badge variant="secondary" className="text-xs">
+                                <Badge variant="secondary" className="text-xs bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md hover:shadow-lg transition-all">
                                   <TrendingUpIcon className="w-3 h-3 mr-1" />
                                   {project.priority}
                                 </Badge>
@@ -395,7 +464,7 @@ export default function ProjectsSection() {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-8 px-2"
+                                className="h-8 px-2 hover:bg-primary/10 hover:text-primary transition-colors"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setEditingPriority(project._id);
@@ -451,7 +520,7 @@ export default function ProjectsSection() {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-8 px-2"
+                                className="h-8 px-2 hover:bg-primary/10 hover:text-primary transition-colors"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setEditingQuarter(project._id);
@@ -507,10 +576,10 @@ export default function ProjectsSection() {
                               <Badge
                                 className={
                                   project.approvalStatus === "approved"
-                                    ? "bg-green-600 hover:bg-green-700 text-white" :
+                                    ? "bg-gradient-to-r from-green-500 to-green-600 text-white shadow-md hover:shadow-lg transition-all border-0" :
                                   project.approvalStatus === "blocked"
-                                    ? "bg-red-600 hover:bg-red-700 text-white" :
-                                  "bg-blue-600 hover:bg-blue-700 text-white"
+                                    ? "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-md hover:shadow-lg transition-all border-0" :
+                                  "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md hover:shadow-lg transition-all border-0"
                                 }
                               >
                                 {project.approvalStatus === "approved" ? t("projects.approvalApproved") :
@@ -520,7 +589,7 @@ export default function ProjectsSection() {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-8 px-2"
+                                className="h-8 px-2 hover:bg-primary/10 hover:text-primary transition-colors"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setEditingApproval(project._id);
@@ -537,7 +606,7 @@ export default function ProjectsSection() {
                             <Button
                               size="sm"
                               variant="default"
-                              className="h-8"
+                              className="h-8 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-md hover:shadow-lg transition-all duration-200"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 navigate(`/project/${project._id}`);

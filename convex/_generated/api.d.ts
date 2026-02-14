@@ -47,6 +47,7 @@ import type * as templates_digestTemplates from "../templates/digestTemplates.js
 import type * as templates_inviteTemplates from "../templates/inviteTemplates.js";
 import type * as templates_notificationTemplates from "../templates/notificationTemplates.js";
 import type * as templates_reminderTemplates from "../templates/reminderTemplates.js";
+import type * as testMyTasks from "../testMyTasks.js";
 import type * as users from "../users.js";
 import type * as workgroups from "../workgroups.js";
 
@@ -96,6 +97,7 @@ declare const fullApi: ApiFromModules<{
   "templates/inviteTemplates": typeof templates_inviteTemplates;
   "templates/notificationTemplates": typeof templates_notificationTemplates;
   "templates/reminderTemplates": typeof templates_reminderTemplates;
+  testMyTasks: typeof testMyTasks;
   users: typeof users;
   workgroups: typeof workgroups;
 }>;

@@ -1,4 +1,4 @@
-import { query } from "./_generated/server";
+import { query, mutation } from "./_generated/server";
 import { getCurrentUser } from "./users";
 
 export const getOverview = query({
@@ -63,13 +63,35 @@ export const getOverview = query({
       projectIds.includes(col.projectId)
     );
 
+    // Function to normalize status strings
+    const normalizeStatus = (status: string): string => {
+      const normalized = status.toLowerCase().replace(/\s+/g, '_');
+      // Map common variations to standard statuses
+      if (normalized === 'in_progress' || normalized === 'inprogress' || normalized === 'in-progress') {
+        return 'in_progress';
+      }
+      if (normalized === 'todo' || normalized === 'to_do' || normalized === 'to-do') {
+        return 'todo';
+      }
+      if (normalized === 'done' || normalized === 'complete' || normalized === 'completed') {
+        return 'done';
+      }
+      if (normalized === 'review' || normalized === 'in_review' || normalized === 'in-review') {
+        return 'review';
+      }
+      if (normalized === 'blocked' || normalized === 'block') {
+        return 'blocked';
+      }
+      return normalized;
+    };
+
     // Define default statuses
     const defaultStatuses = ["todo", "in_progress", "review", "done", "blocked"];
     
-    // Collect all unique status keys from custom columns and defaults
+    // Collect all unique status keys from custom columns and defaults - normalize them all
     const allStatusKeys = new Set<string>([
       ...defaultStatuses,
-      ...projectKanbanColumns.map((col) => col.statusKey),
+      ...projectKanbanColumns.map((col) => normalizeStatus(col.statusKey)),
     ]);
 
     // Initialize task counts for all statuses
@@ -82,11 +104,11 @@ export const getOverview = query({
     for (const task of userTasks) {
       const project = await ctx.db.get(task.projectId);
       if (project) {
-        const status = task.status;
-        if (tasksByStatus[status] !== undefined) {
-          tasksByStatus[status]++;
+        const normalizedStatus = normalizeStatus(task.status);
+        if (tasksByStatus[normalizedStatus] !== undefined) {
+          tasksByStatus[normalizedStatus]++;
         } else {
-          tasksByStatus[status] = 1;
+          tasksByStatus[normalizedStatus] = 1;
         }
       }
     }
@@ -197,12 +219,19 @@ export const getOverview = query({
         const project = await ctx.db.get(task.projectId);
         if (!project) return null; // Filter out tasks from deleted projects
         const workgroup = await ctx.db.get(project.workgroupId);
+        const assignee = task.assigneeId ? await ctx.db.get(task.assigneeId) : null;
         return {
           ...task,
           projectId: task.projectId,
           workgroupId: project.workgroupId,
           projectName: project.name,
           workgroupName: workgroup?.name || "Unknown",
+          assignee: assignee ? {
+            _id: assignee._id,
+            name: assignee.name,
+            email: assignee.email,
+            imageUrl: assignee.image,
+          } : null,
         };
       })
     )).filter((t) => t !== null);
@@ -211,6 +240,29 @@ export const getOverview = query({
     const myExternalTasksWithDetails = allMyTasksWithDetails.filter(
       (task) => task && !projectIds.includes(task.projectId)
     );
+
+    // Get ALL accessible tasks (from user's projects OR assigned to user) with details
+    const allAccessibleTasksWithDetails = (await Promise.all(
+      userTasks.map(async (task) => {
+        const project = await ctx.db.get(task.projectId);
+        if (!project) return null; // Filter out tasks from deleted projects
+        const workgroup = await ctx.db.get(project.workgroupId);
+        const assignee = task.assigneeId ? await ctx.db.get(task.assigneeId) : null;
+        return {
+          ...task,
+          projectId: task.projectId,
+          workgroupId: project.workgroupId,
+          projectName: project.name,
+          workgroupName: workgroup?.name || "Unknown",
+          assignee: assignee ? {
+            _id: assignee._id,
+            name: assignee.name,
+            email: assignee.email,
+            imageUrl: assignee.image,
+          } : null,
+        };
+      })
+    )).filter((t) => t !== null);
 
     // Fetch workgroups for the dashboard
     const workgroups = (
@@ -236,8 +288,103 @@ export const getOverview = query({
       onTimeTasks: onTimeTasksWithDetails,
       myTasksList: allMyTasksWithDetails,
       myExternalTasksList: myExternalTasksWithDetails,
+      allAccessibleTasks: allAccessibleTasksWithDetails,
       workgroups,
       projects,
+    };
+  },
+});
+
+/**
+ * One-time migration to normalize all task statuses and kanban column statuses
+ */
+export const normalizeAllTaskStatuses = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) {
+      throw new Error("Not authenticated");
+    }
+
+    // Function to normalize status strings
+    const normalizeStatus = (status: string): string => {
+      const normalized = status.toLowerCase().replace(/\s+/g, '_');
+      // Map common variations to standard statuses
+      if (normalized === 'in_progress' || normalized === 'inprogress' || normalized === 'in-progress') {
+        return 'in_progress';
+      }
+      if (normalized === 'todo' || normalized === 'to_do' || normalized === 'to-do') {
+        return 'todo';
+      }
+      if (normalized === 'done' || normalized === 'complete' || normalized === 'completed') {
+        return 'done';
+      }
+      if (normalized === 'review' || normalized === 'in_review' || normalized === 'in-review') {
+        return 'review';
+      }
+      if (normalized === 'blocked' || normalized === 'block') {
+        return 'blocked';
+      }
+      return normalized;
+    };
+
+    // Get all tasks
+    const allTasks = await ctx.db.query("tasks").collect();
+    
+    let updatedTasksCount = 0;
+    const taskUpdates: Array<{ taskId: string; oldStatus: string; newStatus: string }> = [];
+
+    for (const task of allTasks) {
+      const normalizedStatus = normalizeStatus(task.status);
+      
+      if (task.status !== normalizedStatus) {
+        taskUpdates.push({
+          taskId: task._id,
+          oldStatus: task.status,
+          newStatus: normalizedStatus,
+        });
+        
+        await ctx.db.patch(task._id, {
+          status: normalizedStatus,
+        });
+        
+        updatedTasksCount++;
+      }
+    }
+
+    // Also normalize Kanban column statuses
+    const allKanbanColumns = await ctx.db.query("kanban_columns").collect();
+    let updatedColumnsCount = 0;
+    const columnUpdates: Array<{ columnId: string; oldStatusKey: string; newStatusKey: string }> = [];
+
+    for (const column of allKanbanColumns) {
+      const normalizedStatusKey = normalizeStatus(column.statusKey);
+      
+      if (column.statusKey !== normalizedStatusKey) {
+        columnUpdates.push({
+          columnId: column._id,
+          oldStatusKey: column.statusKey,
+          newStatusKey: normalizedStatusKey,
+        });
+        
+        await ctx.db.patch(column._id, {
+          statusKey: normalizedStatusKey,
+        });
+        
+        updatedColumnsCount++;
+      }
+    }
+
+    console.log(`[Status Normalization] Updated ${updatedTasksCount} tasks and ${updatedColumnsCount} kanban columns`);
+
+    return {
+      success: true,
+      totalTasks: allTasks.length,
+      updatedTasksCount,
+      totalColumns: allKanbanColumns.length,
+      updatedColumnsCount,
+      taskUpdates,
+      columnUpdates,
     };
   },
 });

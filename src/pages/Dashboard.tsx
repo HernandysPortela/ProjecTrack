@@ -7,11 +7,6 @@ import * as React from "react";
 import { useEffect, useState } from "react";
 import WorkgroupView from "@/pages/WorkgroupView";
 import TasksPage from "@/pages/Tasks";
-import TeamsPage from "@/pages/Teams";
-import InvitesPage from "@/pages/Invites";
-import UsersPage from "@/pages/Users";
-import SettingsPage from "@/pages/Settings";
-import RemindersPage from "@/pages/Reminders";
 import { TaskDetailsLoader } from "@/components/project/TaskDetailsLoader";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
@@ -946,23 +941,27 @@ export default function Dashboard() {
     let taskList = [];
     
     if (taskAssigneeFilter === "me") {
+      // Only show tasks assigned to the current user
       taskList = dashboardOverview?.myTasksList || [];
     } else if (taskAssigneeFilter === "all") {
-      // Combine myTasksList and myExternalTasksList for all tasks
-      const myTasks = dashboardOverview?.myTasksList || [];
-      const externalTasks = dashboardOverview?.myExternalTasksList || [];
-      taskList = [...myTasks, ...externalTasks];
+      // Show all accessible tasks (from user's projects OR assigned to user)
+      // Fallback to combining lists if allAccessibleTasks is not available yet
+      if (dashboardOverview?.allAccessibleTasks && dashboardOverview.allAccessibleTasks.length > 0) {
+        taskList = dashboardOverview.allAccessibleTasks;
+      } else {
+        const myTasks = dashboardOverview?.myTasksList || [];
+        const externalTasks = dashboardOverview?.myExternalTasksList || [];
+        taskList = [...myTasks, ...externalTasks];
+      }
     } else if (taskAssigneeFilter === "unassigned") {
-      // Filter for unassigned tasks
-      const myTasks = dashboardOverview?.myTasksList || [];
-      const externalTasks = dashboardOverview?.myExternalTasksList || [];
-      const allTasks = [...myTasks, ...externalTasks];
+      // Filter for unassigned tasks from all accessible tasks
+      const allTasks = dashboardOverview?.allAccessibleTasks || 
+        [...(dashboardOverview?.myTasksList || []), ...(dashboardOverview?.myExternalTasksList || [])];
       taskList = allTasks.filter((task: any) => !task.assigneeId);
     } else {
-      // Filter by specific user ID
-      const myTasks = dashboardOverview?.myTasksList || [];
-      const externalTasks = dashboardOverview?.myExternalTasksList || [];
-      const allTasks = [...myTasks, ...externalTasks];
+      // Filter by specific user ID from all accessible tasks
+      const allTasks = dashboardOverview?.allAccessibleTasks || 
+        [...(dashboardOverview?.myTasksList || []), ...(dashboardOverview?.myExternalTasksList || [])];
       taskList = allTasks.filter((task: any) => task.assigneeId === taskAssigneeFilter);
     }
 
@@ -1013,13 +1012,17 @@ export default function Dashboard() {
     });
 
     return sorted;
-  }, [dashboardOverview?.myTasksList, dashboardOverview?.myExternalTasksList, dashboardOverview?.projects, taskProjectFilter, taskPriorityFilter, taskAssigneeFilter, taskStatusFilter, taskSortBy]);
+  }, [dashboardOverview?.myTasksList, dashboardOverview?.myExternalTasksList, dashboardOverview?.allAccessibleTasks, dashboardOverview?.projects, taskProjectFilter, taskPriorityFilter, taskAssigneeFilter, taskStatusFilter, taskSortBy]);
 
   const taskProjects = useMemo(() => {
-    if (!dashboardOverview?.myTasksList) return [];
+    // Use allAccessibleTasks if available, fallback to combined lists
+    const tasks = dashboardOverview?.allAccessibleTasks || 
+      [...(dashboardOverview?.myTasksList || []), ...(dashboardOverview?.myExternalTasksList || [])];
+    
+    if (!tasks || tasks.length === 0) return [];
 
     const projectMap = new Map<string, { id: string; name: string }>();
-    dashboardOverview.myTasksList.forEach((task) => {
+    tasks.forEach((task) => {
       if (!projectMap.has(task.projectId)) {
         projectMap.set(task.projectId, {
           id: task.projectId,
@@ -1029,7 +1032,7 @@ export default function Dashboard() {
     });
 
     return Array.from(projectMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [dashboardOverview?.myTasksList]);
+  }, [dashboardOverview?.allAccessibleTasks, dashboardOverview?.myTasksList, dashboardOverview?.myExternalTasksList]);
 
   // Early return for loading state
   if (isLoading || !currentUser) {
@@ -1075,9 +1078,16 @@ export default function Dashboard() {
       case "dashboard":
         return (
           <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold">{t('dashboard.overview')}</h2>
-              <p className="text-muted-foreground">
+            <div className="mb-8 bg-gradient-to-br from-background via-background to-primary/5 rounded-xl p-6 border border-border/50 shadow-sm">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <LayoutDashboard className="h-6 w-6 text-primary" />
+                </div>
+                <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+                  {t('dashboard.overview')}
+                </h2>
+              </div>
+              <p className="text-muted-foreground ml-14">
                 {t('dashboard.overviewDesc')}
               </p>
             </div>
@@ -1089,144 +1099,207 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-6">
                 {/* Statistics Cards */}
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">
+                <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+                  <Card className="border border-border/60 shadow-md hover:shadow-lg hover:border-blue-500/40 transition-all duration-300 bg-gradient-to-br from-background to-blue-50/30 dark:to-blue-950/20 overflow-hidden group">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                      <CardTitle className="text-sm font-semibold text-foreground/80">
                         {t('dashboard.totalWorkspaces')}
                       </CardTitle>
-                      <FolderKanban className="h-4 w-4 text-muted-foreground" />
+                      <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg group-hover:scale-110 transition-transform duration-300">
+                        <FolderKanban className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">
+                      <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
                         {dashboardOverview.stats.totalWorkspaces}
                       </div>
+                      <div className="h-1 w-12 bg-gradient-to-r from-blue-500 to-blue-300 rounded-full mt-3"></div>
                     </CardContent>
                   </Card>
 
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">
+                  <Card className="border border-border/60 shadow-md hover:shadow-lg hover:border-purple-500/40 transition-all duration-300 bg-gradient-to-br from-background to-purple-50/30 dark:to-purple-950/20 overflow-hidden group">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                      <CardTitle className="text-sm font-semibold text-foreground/80">
                         {t('dashboard.totalProjects')}
                       </CardTitle>
-                      <Briefcase className="h-4 w-4 text-muted-foreground" />
+                      <div className="p-2.5 bg-purple-100 dark:bg-purple-900/30 rounded-lg group-hover:scale-110 transition-transform duration-300">
+                        <Briefcase className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                      </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">
+                      <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
                         {dashboardOverview.stats.totalProjects}
                       </div>
+                      <div className="h-1 w-12 bg-gradient-to-r from-purple-500 to-purple-300 rounded-full mt-3"></div>
                     </CardContent>
                   </Card>
 
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">
+                  <Card className="border border-border/60 shadow-md hover:shadow-lg hover:border-green-500/40 transition-all duration-300 bg-gradient-to-br from-background to-green-50/30 dark:to-green-950/20 overflow-hidden group">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                      <CardTitle className="text-sm font-semibold text-foreground/80">
                         {t('dashboard.myTasks')}
                       </CardTitle>
-                      <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                      <div className="p-2.5 bg-green-100 dark:bg-green-900/30 rounded-lg group-hover:scale-110 transition-transform duration-300">
+                        <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">
+                      <div className="text-3xl font-bold text-green-600 dark:text-green-400">
                         {dashboardOverview.stats.myTasks}
                       </div>
+                      <div className="h-1 w-12 bg-gradient-to-r from-green-500 to-green-300 rounded-full mt-3"></div>
                     </CardContent>
                   </Card>
 
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">
+                  <Card className="border border-border/60 shadow-md hover:shadow-lg hover:border-red-500/40 transition-all duration-300 bg-gradient-to-br from-background to-red-50/30 dark:to-red-950/20 overflow-hidden group">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                      <CardTitle className="text-sm font-semibold text-foreground/80">
                         {t('dashboard.overdueTasks')}
                       </CardTitle>
-                      <AlertCircle className="h-4 w-4 text-destructive" />
+                      <div className="p-2.5 bg-red-100 dark:bg-red-900/30 rounded-lg group-hover:scale-110 transition-transform duration-300">
+                        <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                      </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold text-destructive">
+                      <div className="text-3xl font-bold text-red-600 dark:text-red-400">
                         {dashboardOverview.stats.overdueTasks}
                       </div>
                       {dashboardOverview.stats.myOverdueTasks > 0 && (
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="text-xs text-muted-foreground mt-2 font-medium">
                           {dashboardOverview.stats.myOverdueTasks} {t('dashboard.assignedToYou')}
                         </p>
                       )}
+                      <div className="h-1 w-12 bg-gradient-to-r from-red-500 to-red-300 rounded-full mt-3"></div>
                     </CardContent>
                   </Card>
                 </div>
 
                 {/* Task Status Distribution */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{t('dashboard.taskStatusDistribution')}</CardTitle>
-                    <CardDescription>
+                <Card className="border border-border shadow-lg overflow-hidden">
+                  <CardHeader className="bg-gradient-to-r from-background to-muted/20 border-b">
+                    <CardTitle className="text-xl font-bold flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-primary animate-pulse"></div>
+                      {t('dashboard.taskStatusDistribution')}
+                    </CardTitle>
+                    <CardDescription className="text-sm">
                       {t('dashboard.taskStatusDistributionDesc')}
                     </CardDescription>
                   </CardHeader>
-                  <CardContent>
-                    <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
-                      {Object.entries(dashboardOverview.tasksByStatus)
-                        .sort(([a], [b]) => {
-                          const order = ["todo", "in_progress", "review", "done", "blocked"];
-                          const aIndex = order.indexOf(a);
-                          const bIndex = order.indexOf(b);
-                          if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
-                          if (aIndex !== -1) return -1;
-                          if (bIndex !== -1) return 1;
-                          return a.localeCompare(b);
-                        })
-                        .map(([status, count]) => {
-                          const displayName = status
-                            .split('_')
-                            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                            .join(' ');
-
-                          let colorClass = "text-gray-600";
-                          if (status.includes("done") || status.includes("complete") || status.includes("finalizado")) {
-                            colorClass = "text-green-600";
-                          } else if (status.includes("progress") || status.includes("doing")) {
-                            colorClass = "text-blue-600";
-                          } else if (status.includes("review") || status.includes("testing")) {
-                            colorClass = "text-yellow-600";
-                          } else if (status.includes("blocked") || status.includes("stuck")) {
-                            colorClass = "text-red-600";
-                          } else if (status.includes("todo")) {
-                            colorClass = "text-slate-600";
+                  <CardContent className="pt-6">
+                    <div className="grid gap-6 md:grid-cols-3 lg:grid-cols-5">
+                      {(() => {
+                        // Normalizar e agrupar status
+                        const normalizeStatus = (status: string): string => {
+                          const normalized = status.toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
+                          if (normalized === 'in_progress' || normalized === 'inprogress') {
+                            return 'in_progress';
                           }
+                          if (normalized === 'todo' || normalized === 'to_do') {
+                            return 'todo';
+                          }
+                          if (normalized === 'done' || normalized === 'complete' || normalized === 'completed') {
+                            return 'done';
+                          }
+                          if (normalized === 'review' || normalized === 'in_review') {
+                            return 'review';
+                          }
+                          if (normalized === 'blocked' || normalized === 'block') {
+                            return 'blocked';
+                          }
+                          return normalized;
+                        };
 
-                          return (
-                            <div key={status} className="flex flex-col">
-                              <span className="text-sm text-muted-foreground">{displayName}</span>
-                              <span className={`text-2xl font-bold ${colorClass}`}>
-                                {count}
-                              </span>
-                            </div>
-                          );
-                        })}
+                        // Traduzir status usando o sistema de i18n
+                        const translateStatus = (status: string): string => {
+                          const translations: Record<string, string> = {
+                            'todo': t('tasks.toDo'),
+                            'in_progress': t('tasks.inProgress'),
+                            'review': t('tasks.review'),
+                            'done': t('tasks.done'),
+                            'blocked': t('tasks.blocked'),
+                          };
+                          return translations[status] || status.split('_').map(word => 
+                            word.charAt(0).toUpperCase() + word.slice(1)
+                          ).join(' ');
+                        };
+
+                        // Agrupar status duplicados
+                        const groupedStatus: Record<string, number> = {};
+                        Object.entries(dashboardOverview.tasksByStatus).forEach(([status, count]) => {
+                          const normalized = normalizeStatus(status);
+                          groupedStatus[normalized] = (groupedStatus[normalized] || 0) + count;
+                        });
+
+                        return Object.entries(groupedStatus)
+                          .sort(([a], [b]) => {
+                            const order = ["todo", "in_progress", "review", "done", "blocked"];
+                            const aIndex = order.indexOf(a);
+                            const bIndex = order.indexOf(b);
+                            if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+                            if (aIndex !== -1) return -1;
+                            if (bIndex !== -1) return 1;
+                            return a.localeCompare(b);
+                          })
+                          .map(([status, count]) => {
+                            const displayName = translateStatus(status);
+
+                            let colorClass = "text-gray-600";
+                            if (status.includes("done") || status.includes("complete")) {
+                              colorClass = "text-green-600";
+                            } else if (status.includes("progress") || status === "in_progress") {
+                              colorClass = "text-blue-600";
+                            } else if (status.includes("review")) {
+                              colorClass = "text-yellow-600";
+                            } else if (status.includes("blocked")) {
+                              colorClass = "text-red-600";
+                            } else if (status === "todo") {
+                              colorClass = "text-slate-600";
+                            }
+
+                            return (
+                              <div key={status} className="flex flex-col p-4 rounded-lg bg-gradient-to-br from-muted/30 to-muted/10 hover:shadow-md transition-all duration-200 border border-border/30">
+                                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{displayName}</span>
+                                <span className={`text-3xl font-bold ${colorClass}`}>
+                                  {count}
+                                </span>
+                              </div>
+                            );
+                          });
+                      })()}
                     </div>
                   </CardContent>
                 </Card>
 
                 <div className="grid gap-6 md:grid-cols-2">
                   {/* Overdue Tasks */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <AlertCircle className="h-5 w-5 text-destructive" />
+                  <Card className="border border-border shadow-lg overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-red-50/50 to-background dark:from-red-950/20 border-b border-red-200/30 dark:border-red-800/30">
+                      <CardTitle className="flex items-center gap-2 text-lg font-bold">
+                        <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                        </div>
                         {t('dashboard.overdueTasks')}
                       </CardTitle>
-                      <CardDescription>
+                      <CardDescription className="text-sm ml-11">
                         {t('dashboard.overduetasksDesc')}
                       </CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="pt-6">
                       {dashboardOverview.overdueTasksList.length === 0 ? (
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                          {t('dashboard.noOverdueTasks')}
-                        </p>
+                        <div className="text-center py-8">
+                          <div className="inline-block p-3 bg-green-100 dark:bg-green-900/30 rounded-full mb-3">
+                            <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
+                          </div>
+                          <p className="text-sm text-muted-foreground font-medium">
+                            {t('dashboard.noOverdueTasks')}
+                          </p>
+                        </div>
                       ) : (
                         <div className="space-y-3">
                           {dashboardOverview.overdueTasksList.map((task) => (
                             <div
                               key={task._id}
-                              className="flex items-start justify-between p-3 bg-destructive/10 rounded-lg hover:bg-destructive/20 transition-colors cursor-pointer"
+                              className="flex items-start justify-between p-4 bg-gradient-to-r from-red-50/50 to-background dark:from-red-950/20 rounded-lg hover:shadow-md hover:scale-[1.02] transition-all duration-200 cursor-pointer border border-red-200/30 dark:border-red-800/30"
                               onClick={() => navigate(`/project/${task.projectId}?taskId=${task._id}`)}
                             >
                               <div className="flex-1">
@@ -1255,27 +1328,34 @@ export default function Dashboard() {
                   </Card>
 
                   {/* On-Time Tasks */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <CheckCircle className="h-5 w-5 text-green-600" />
+                  <Card className="border border-border shadow-lg overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-green-50/50 to-background dark:from-green-950/20 border-b border-green-200/30 dark:border-green-800/30">
+                      <CardTitle className="flex items-center gap-2 text-lg font-bold">
+                        <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                          <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                        </div>
                         {t('dashboard.onTimeTasks')}
                       </CardTitle>
-                      <CardDescription>
+                      <CardDescription className="text-sm ml-11">
                         {t('dashboard.onTimeTasksDesc')}
                       </CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="pt-6">
                       {dashboardOverview.onTimeTasks.length === 0 ? (
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                          {t('dashboard.noOnTimeTasks')}
-                        </p>
+                        <div className="text-center py-8">
+                          <div className="inline-block p-3 bg-muted/50 rounded-full mb-3">
+                            <Clock className="h-8 w-8 text-muted-foreground" />
+                          </div>
+                          <p className="text-sm text-muted-foreground font-medium">
+                            {t('dashboard.noOnTimeTasks')}
+                          </p>
+                        </div>
                       ) : (
                         <div className="space-y-3">
                           {dashboardOverview.onTimeTasks.map((task) => (
                             <div
                               key={task._id}
-                              className="flex items-start justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors cursor-pointer"
+                              className="flex items-start justify-between p-4 bg-gradient-to-r from-muted/30 to-background rounded-lg hover:shadow-md hover:scale-[1.02] transition-all duration-200 cursor-pointer border border-border/30"
                               onClick={() => navigate(`/project/${task.projectId}?taskId=${task._id}`)}
                             >
                               <div className="flex-1">
@@ -1306,27 +1386,34 @@ export default function Dashboard() {
 
                 <div className="grid gap-6 md:grid-cols-2">
                   {/* Upcoming Tasks */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Clock className="h-5 w-5" />
+                  <Card className="border border-border shadow-lg overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-blue-50/50 to-background dark:from-blue-950/20 border-b border-blue-200/30 dark:border-blue-800/30">
+                      <CardTitle className="flex items-center gap-2 text-lg font-bold">
+                        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                          <Clock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        </div>
                         {t('dashboard.upcomingTasks')}
                       </CardTitle>
-                      <CardDescription>
+                      <CardDescription className="text-sm ml-11">
                         {t('dashboard.upcomingTasksDesc')}
                       </CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="pt-6">
                       {dashboardOverview.upcomingTasks.length === 0 ? (
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                          {t('dashboard.noUpcomingTasks')}
-                        </p>
+                        <div className="text-center py-8">
+                          <div className="inline-block p-3 bg-muted/50 rounded-full mb-3">
+                            <CalendarIcon className="h-8 w-8 text-muted-foreground" />
+                          </div>
+                          <p className="text-sm text-muted-foreground font-medium">
+                            {t('dashboard.noUpcomingTasks')}
+                          </p>
+                        </div>
                       ) : (
                         <div className="space-y-3">
                           {dashboardOverview.upcomingTasks.map((task) => (
                             <div
                               key={task._id}
-                              className="flex items-start justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors cursor-pointer"
+                              className="flex items-start justify-between p-4 bg-gradient-to-r from-muted/30 to-background rounded-lg hover:shadow-md hover:scale-[1.02] transition-all duration-200 cursor-pointer border border-border/30"
                               onClick={() => navigate(`/project/${task.projectId}?taskId=${task._id}`)}
                             >
                               <div className="flex-1">
@@ -1355,27 +1442,34 @@ export default function Dashboard() {
                   </Card>
 
                   {/* Recent Activity */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <TrendingUp className="h-5 w-5" />
+                  <Card className="border border-border shadow-lg overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-purple-50/50 to-background dark:from-purple-950/20 border-b border-purple-200/30 dark:border-purple-800/30">
+                      <CardTitle className="flex items-center gap-2 text-lg font-bold">
+                        <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                          <TrendingUp className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                        </div>
                         {t('dashboard.recentActivity')}
                       </CardTitle>
-                      <CardDescription>
+                      <CardDescription className="text-sm ml-11">
                         {t('dashboard.recentActivityDesc')}
                       </CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="pt-6">
                       {dashboardOverview.recentActivity.length === 0 ? (
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                          {t('dashboard.noRecentActivity')}
-                        </p>
+                        <div className="text-center py-8">
+                          <div className="inline-block p-3 bg-muted/50 rounded-full mb-3">
+                            <TrendingUp className="h-8 w-8 text-muted-foreground" />
+                          </div>
+                          <p className="text-sm text-muted-foreground font-medium">
+                            {t('dashboard.noRecentActivity')}
+                          </p>
+                        </div>
                       ) : (
                         <div className="space-y-3">
                           {dashboardOverview.recentActivity.map((activity) => (
                             <div
                               key={activity._id}
-                              className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg"
+                              className="flex items-start gap-3 p-4 bg-gradient-to-r from-muted/30 to-background rounded-lg hover:shadow-md transition-all duration-200 border border-border/30"
                             >
                               <div className="flex-1">
                                 <p className="text-sm">

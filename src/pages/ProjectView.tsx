@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, ArrowLeft, Plus, CheckCircle2, Circle, Clock, AlertCircle, List, Calendar, LayoutGrid, GanttChart, Trash2, Edit, MoreVertical, ChevronRight, ChevronDown, Settings, Upload, Download, FileText, UserPlus, UserMinus, Ban, X, GripVertical, User } from "lucide-react";
+import { Loader2, ArrowLeft, Plus, CheckCircle2, Circle, Clock, AlertCircle, List, Calendar, LayoutGrid, GanttChart, Trash2, Edit, MoreVertical, ChevronRight, ChevronDown, Settings, Upload, Download, FileText, UserPlus, UserMinus, Ban, X, GripVertical, User, ArrowUpDown } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { Id } from "@convex/_generated/dataModel";
@@ -1075,13 +1075,13 @@ export default function ProjectView() {
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case TASK_PRIORITY.URGENT:
-        return "bg-red-100 text-red-700 border-red-200";
+        return "bg-gradient-to-r from-red-500 to-red-600 text-white border-0 shadow-md";
       case TASK_PRIORITY.HIGH:
-        return "bg-orange-100 text-orange-700 border-orange-200";
+        return "bg-gradient-to-r from-orange-500 to-orange-600 text-white border-0 shadow-md";
       case TASK_PRIORITY.MEDIUM:
-        return "bg-yellow-100 text-yellow-700 border-yellow-200";
+        return "bg-gradient-to-r from-yellow-500 to-yellow-600 text-white border-0 shadow-md";
       default:
-        return "bg-slate-100 text-slate-700 border-slate-200";
+        return "bg-gradient-to-r from-slate-500 to-slate-600 text-white border-0 shadow-md";
     }
   };
 
@@ -1308,11 +1308,11 @@ export default function ProjectView() {
     return (
       <div ref={setNodeRef} style={style} key={task._id}>
         <div style={{ marginLeft: `${level * 24}px` }}>
-          <Card className="shadow-md hover:shadow-lg transition-shadow mb-2 cursor-grab active:cursor-grabbing">
-            <CardHeader>
+          <Card className="border border-border/60 shadow-md hover:shadow-xl hover:border-primary/40 transition-all duration-300 mb-2 cursor-grab active:cursor-grabbing hover:scale-[1.01] bg-gradient-to-br from-card to-card/50 backdrop-blur-sm">
+            <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3 flex-1">
-                  <div {...attributes} {...listeners} className="mt-1 cursor-grab active:cursor-grabbing">
+                  <div {...attributes} {...listeners} className="mt-1 cursor-grab active:cursor-grabbing hover:text-primary transition-colors">
                     <GripVertical className="h-5 w-5 text-muted-foreground" />
                   </div>
                   {hasSubtasks && (
@@ -1321,7 +1321,7 @@ export default function ProjectView() {
                         e.stopPropagation();
                         toggleTaskExpansion(task._id);
                       }}
-                      className="mt-1"
+                      className="mt-1 hover:bg-muted/50 rounded-sm p-0.5 transition-all"
                     >
                       {isExpanded ? (
                         <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -1331,9 +1331,11 @@ export default function ProjectView() {
                     </button>
                   )}
                   {!hasSubtasks && <div className="w-4" />}
-                  {getStatusIcon(task.status)}
+                  <div className="mt-1">
+                    {getStatusIcon(task.status)}
+                  </div>
                   <div className="flex-1 cursor-pointer" onClick={() => !isDragging && openEditDialog(task)}>
-                    <CardTitle className="text-lg">{task.title}</CardTitle>
+                    <CardTitle className="text-lg font-bold tracking-tight">{task.title}</CardTitle>
                     {task.parentTaskId && (
                       <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
                         <span>Subtask of:</span>
@@ -1398,7 +1400,7 @@ export default function ProjectView() {
                     variant="outline"
                     size="sm"
                     onClick={() => openSubtaskDialog(task._id)}
-                    className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300"
+                    className="bg-gradient-to-r from-blue-50 to-blue-100/50 border-blue-200 text-blue-700 hover:from-blue-100 hover:to-blue-200/50 hover:border-blue-300 shadow-sm hover:shadow-md transition-all duration-200"
                   >
                     <Plus className="h-3 w-3 mr-1" />
                     Subtask
@@ -1407,7 +1409,7 @@ export default function ProjectView() {
                     variant="outline"
                     size="sm"
                     onClick={() => openEditDialog(task)}
-                    className="bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
+                    className="bg-gradient-to-r from-slate-50 to-slate-100/50 border-slate-200 text-slate-700 hover:from-slate-100 hover:to-slate-200/50 hover:border-slate-300 shadow-sm hover:shadow-md transition-all duration-200"
                   >
                     <Edit className="h-3 w-3 mr-1" />
                     Editar
@@ -1420,7 +1422,7 @@ export default function ProjectView() {
                         setTaskToDelete(task._id);
                         setIsDeleteDialogOpen(true);
                       }}
-                      className="bg-red-50 border-red-200 text-red-700 hover:bg-red-100 hover:border-red-300"
+                      className="bg-gradient-to-r from-red-50 to-red-100/50 border-red-200 text-red-700 hover:from-red-100 hover:to-red-200/50 hover:border-red-300 shadow-sm hover:shadow-md transition-all duration-200"
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
@@ -1729,7 +1731,7 @@ export default function ProjectView() {
         style={style}
         {...attributes}
         {...listeners}
-        className="p-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow bg-card text-card-foreground rounded-lg border shadow-sm"
+        className="p-3 cursor-grab active:cursor-grabbing hover:shadow-xl hover:scale-[1.02] transition-all duration-200 bg-gradient-to-br from-card to-card/50 text-card-foreground rounded-lg border border-border/60 hover:border-primary/40 shadow-md backdrop-blur-sm"
       >
         <div
           onClick={(e) => {
@@ -1738,15 +1740,15 @@ export default function ProjectView() {
             }
           }}
         >
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <h4 className="font-medium text-sm break-words leading-snug flex-1">{task.title}</h4>
+          <div className="flex items-start justify-between gap-2 mb-3">
+            <h4 className="font-semibold text-sm break-words leading-snug flex-1 tracking-tight">{task.title}</h4>
             {hasSubtasks && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleTaskExpansion(task._id);
                 }}
-                className="flex-shrink-0 p-1 hover:bg-muted rounded transition-colors"
+                className="flex-shrink-0 p-1 hover:bg-muted/50 rounded transition-all duration-200"
               >
                 {isExpanded ? (
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -1756,19 +1758,20 @@ export default function ProjectView() {
               </button>
             )}
           </div>
-          <div className="flex flex-wrap gap-1 mb-2">
-            <span className={`text-xs px-2 py-0.5 rounded-full ${getPriorityColor(task.priority)}`}>
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            <span className={`text-xs px-2 py-1 rounded-md font-medium ${getPriorityColor(task.priority)}`}>
               {task.priority}
             </span>
             {task.assigneeName && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+              <span className="text-xs px-2 py-1 rounded-md bg-gradient-to-r from-primary/10 to-primary/20 text-primary font-medium border border-primary/20">
                 {task.assigneeName}
               </span>
             )}
             {!isDragging && <TaskTagsDisplay taskId={task._id} />}
           </div>
           {hasSubtasks && (
-            <div className="text-xs text-muted-foreground">
+            <div className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+              <List className="h-3.5 w-3.5" />
               {subtasks.length} subtask{subtasks.length !== 1 ? 's' : ''}
             </div>
           )}
@@ -1813,18 +1816,21 @@ export default function ProjectView() {
     return (
       <div ref={setSortableRef} style={style} className="flex flex-col min-w-[300px] max-w-[300px] h-full">
         <div 
-          className="p-3 rounded-t-lg border-b flex items-center justify-between cursor-grab active:cursor-grabbing"
+          className="p-3 rounded-t-lg border-b flex items-center justify-between cursor-grab active:cursor-grabbing shadow-md hover:shadow-lg transition-all"
           style={{ backgroundColor: columnColor }}
           {...attributes}
           {...listeners}
         >
           <div className="flex-1">
-            <h3 className="font-semibold text-sm text-white drop-shadow-sm">{column.name}</h3>
-            <span className="text-xs text-white/80 drop-shadow-sm">{columnTasks.length} tasks</span>
+            <h3 className="font-bold text-sm text-white drop-shadow-md flex items-center gap-2">
+              <GripVertical className="h-4 w-4 opacity-70" />
+              {column.name}
+            </h3>
+            <span className="text-xs text-white/90 drop-shadow-sm font-medium ml-6">{columnTasks.length} tasks</span>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 ml-2 hover:bg-white/20 text-white">
+              <Button variant="ghost" size="icon" className="h-8 w-8 ml-2 hover:bg-white/20 text-white transition-all duration-200">
                 <Settings className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -1838,8 +1844,8 @@ export default function ProjectView() {
         </div>
         <div 
           ref={setDroppableRef}
-          className={`space-y-2 p-2 bg-muted/30 rounded-b-lg min-h-[200px] flex-1 transition-colors ${
-            isOver ? 'bg-primary/10 border-2 border-primary border-dashed' : ''
+          className={`space-y-3 p-3 bg-gradient-to-b from-muted/20 to-muted/40 rounded-b-lg min-h-[200px] flex-1 transition-all duration-300 border-x border-b ${
+            isOver ? 'bg-primary/10 border-2 border-primary border-dashed shadow-inner' : ''
           }`}
         >
           <SortableContext
@@ -1906,12 +1912,15 @@ export default function ProjectView() {
     };
 
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
+      <div className="space-y-6">
+        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-muted/30 to-muted/10 rounded-lg border shadow-sm">
           <div className="flex items-center gap-4">
-            <label className="text-sm font-medium">Sort by:</label>
+            <label className="text-sm font-semibold flex items-center gap-2">
+              <ArrowUpDown className="h-4 w-4 text-primary" />
+              Sort by:
+            </label>
             <Select value={sortMode} onValueChange={(value: "manual" | "priority" | "startDate" | "dueDate") => setSortMode(value)}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-[180px] bg-background/50 border-muted focus:border-primary transition-all">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1921,27 +1930,27 @@ export default function ProjectView() {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span className="font-medium">Subtask Status:</span>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-green-500" />
-              <span>Done</span>
+          <div className="flex items-center gap-4 text-xs">
+            <span className="font-semibold text-muted-foreground">Subtask Status:</span>
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-green-50 dark:bg-green-950/20 rounded-md">
+              <div className="w-2 h-2 rounded-full bg-green-500 shadow-sm" />
+              <span className="font-medium text-green-700 dark:text-green-400">Done</span>
             </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-blue-500" />
-              <span>In Progress</span>
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-50 dark:bg-blue-950/20 rounded-md">
+              <div className="w-2 h-2 rounded-full bg-blue-500 shadow-sm" />
+              <span className="font-medium text-blue-700 dark:text-blue-400">In Progress</span>
             </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-purple-500" />
-              <span>Review</span>
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-purple-50 dark:bg-purple-950/20 rounded-md">
+              <div className="w-2 h-2 rounded-full bg-purple-500 shadow-sm" />
+              <span className="font-medium text-purple-700 dark:text-purple-400">Review</span>
             </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-red-500" />
-              <span>Blocked</span>
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-red-50 dark:bg-red-950/20 rounded-md">
+              <div className="w-2 h-2 rounded-full bg-red-500 shadow-sm" />
+              <span className="font-medium text-red-700 dark:text-red-400">Blocked</span>
             </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-gray-400" />
-              <span>To Do</span>
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-50 dark:bg-gray-950/20 rounded-md">
+              <div className="w-2 h-2 rounded-full bg-gray-400 shadow-sm" />
+              <span className="font-medium text-gray-700 dark:text-gray-400">To Do</span>
             </div>
           </div>
         </div>
@@ -2549,12 +2558,15 @@ export default function ProjectView() {
         </div>
 
         {/* Status Breakdown */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Task Status Breakdown</CardTitle>
-            <CardDescription>Distribution of tasks by status</CardDescription>
+        <Card className="border border-border shadow-lg overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-background to-muted/20 border-b">
+            <CardTitle className="text-xl font-bold flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-primary animate-pulse"></div>
+              Task Status Breakdown
+            </CardTitle>
+            <CardDescription className="text-sm">Distribution of tasks by status</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -2641,10 +2653,10 @@ export default function ProjectView() {
 
         {/* Assignment Status */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Assignment Status</CardTitle>
-              <CardDescription>Task assignment distribution</CardDescription>
+          <Card className="border border-border shadow-lg overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-background to-muted/20 border-b">
+              <CardTitle className="text-lg font-bold">Assignment Status</CardTitle>
+              <CardDescription className="text-sm">Task assignment distribution</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -3036,26 +3048,32 @@ export default function ProjectView() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-card shadow-sm">
-        <div className="flex h-16 items-center gap-4 px-6 max-w-[98%] mx-auto">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+      {/* Header Moderno */}
+      <header className="sticky top-0 z-50 w-full border-b bg-gradient-to-r from-background via-card to-background shadow-lg backdrop-blur-sm">
+        <div className="flex h-20 items-center gap-4 px-6 max-w-[98%] mx-auto">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => navigate(-1)}
+            className="hover:bg-primary/10 hover:text-primary transition-all rounded-lg"
+          >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div className="flex items-center gap-3 flex-1">
+          <div className="flex items-center gap-4 flex-1">
             <div
-              className="w-3 h-3 rounded-full"
+              className="w-5 h-5 rounded-full shadow-lg ring-2 ring-background transition-transform hover:scale-110"
               style={{ backgroundColor: project.color }}
             />
             <div>
-              <h1 className="text-xl font-bold tracking-tight">{project.name}</h1>
-              <p className="text-xs text-muted-foreground">Owner: {project.ownerName}</p>
+              <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">{project.name}</h1>
+              <p className="text-xs text-muted-foreground font-medium">👤 {project.ownerName}</p>
             </div>
           </div>
           <div className="flex gap-2">
             <Button
               onClick={() => setIsCreateDialogOpen(true)}
               disabled={canCreateTasks === false}
+              className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-md hover:shadow-lg transition-all duration-200"
             >
               <Plus className="h-4 w-4 mr-2" />
               {t('tasks.newTask')}
@@ -3067,6 +3085,7 @@ export default function ProjectView() {
                 setShowProjectSettings(true);
                 setSettingsTab("members");
               }}
+              className="hover:bg-muted/80 hover:border-primary/40 transition-all duration-200"
             >
               <Settings className="h-4 w-4 mr-2" />
               {t('tasks.settings')}
@@ -3081,6 +3100,7 @@ export default function ProjectView() {
                 console.log("CurrentTarget:", e.currentTarget);
                 handleDelete();
               }}
+              className="bg-gradient-to-r from-destructive to-destructive/80 hover:from-destructive/90 hover:to-destructive/70 shadow-md hover:shadow-lg transition-all duration-200"
             >
               <Trash2 className="h-4 w-4 mr-2" />
               {t('tasks.delete')}
@@ -3093,39 +3113,50 @@ export default function ProjectView() {
       <Dialog open={isCreateDialogOpen || isEditDialogOpen} onOpenChange={(open) => {
         if (!open) resetForm();
       }}>
-        <DialogContent className="w-[85vw] max-w-[1400px] sm:max-w-[1400px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
+        <DialogContent className="w-[85vw] max-w-[1400px] sm:max-w-[1400px] max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-950 shadow-2xl border border-border">
+          <DialogHeader className="space-y-2 border-b pb-4">
+            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
               {editingTask ? t('tasks.editTask') : isSubtaskDialog ? t('tasks.createSubtask') : t('tasks.createTask')}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-sm">
               {editingTask ? t('tasks.updateTaskDetails') : t('tasks.addNewTask')}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleCreateTask} className="space-y-4">
-            <div>
-              <Label htmlFor="taskTitle">{t('tasks.title')}</Label>
+          <form onSubmit={handleCreateTask} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="taskTitle" className="text-sm font-semibold flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-primary"></div>
+                {t('tasks.title')}
+              </Label>
               <Input
                 id="taskTitle"
                 value={taskTitle}
                 onChange={(e) => setTaskTitle(e.target.value)}
                 placeholder={t('tasks.taskTitle')}
+                className="bg-background/50 border-muted focus:border-primary transition-all"
                 required
               />
             </div>
-            <div>
-              <Label htmlFor="taskDescription">{t('tasks.description')}</Label>
+            <div className="space-y-2">
+              <Label htmlFor="taskDescription" className="text-sm font-semibold flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-primary"></div>
+                {t('tasks.description')}
+              </Label>
               <Textarea
                 id="taskDescription"
                 value={taskDescription}
                 onChange={(e) => setTaskDescription(e.target.value)}
                 placeholder={t('tasks.taskDescription')}
+                className="bg-background/50 border-muted focus:border-primary transition-all min-h-[100px]"
                 rows={3}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="taskStatus">{t('tasks.status')}</Label>
+            <div className="grid grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="taskStatus" className="text-sm font-semibold flex items-center gap-2">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+                  {t('tasks.status')}
+                </Label>
                 <Select value={taskStatus} onValueChange={(value) => setTaskStatus(value as any)}>
                   <SelectTrigger>
                     <SelectValue />
@@ -3139,8 +3170,11 @@ export default function ProjectView() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label htmlFor="taskPriority">{t('tasks.priority')}</Label>
+              <div className="space-y-2">
+                <Label htmlFor="taskPriority" className="text-sm font-semibold flex items-center gap-2">
+                  <AlertCircle className="h-3.5 w-3.5 text-orange-500" />
+                  {t('tasks.priority')}
+                </Label>
                 <Select value={taskPriority} onValueChange={(value) => setTaskPriority(value as any)}>
                   <SelectTrigger>
                     <SelectValue />
@@ -3154,9 +3188,12 @@ export default function ProjectView() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="taskStartDate">{t('tasks.startDate')}</Label>
+            <div className="grid grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="taskStartDate" className="text-sm font-semibold flex items-center gap-2">
+                  <Calendar className="h-3.5 w-3.5 text-primary" />
+                  {t('tasks.startDate')}
+                </Label>
                 <Input
                   id="taskStartDate"
                   type="date"
@@ -3164,8 +3201,11 @@ export default function ProjectView() {
                   onChange={(e) => setTaskStartDate(e.target.value)}
                 />
               </div>
-              <div>
-                <Label htmlFor="taskDueDate">{t('tasks.dueDate')}</Label>
+              <div className="space-y-2">
+                <Label htmlFor="taskDueDate" className="text-sm font-semibold flex items-center gap-2">
+                  <Calendar className="h-3.5 w-3.5 text-destructive" />
+                  {t('tasks.dueDate')}
+                </Label>
                 <Input
                   id="taskDueDate"
                   type="date"
@@ -3177,8 +3217,11 @@ export default function ProjectView() {
 
             {/* Task Cost Tracking */}
             {editingTask && (
-              <div>
-                <Label htmlFor="taskEstimatedCost">{t('tasks.estimatedCost')}</Label>
+              <div className="space-y-2">
+                <Label htmlFor="taskEstimatedCost" className="text-sm font-semibold flex items-center gap-2">
+                  <div className="h-1.5 w-1.5 rounded-full bg-green-500"></div>
+                  {t('tasks.estimatedCost')}
+                </Label>
                 <Input
                   id="taskEstimatedCost"
                   type="number"
@@ -3196,8 +3239,11 @@ export default function ProjectView() {
               </div>
             )}
 
-            <div>
-              <Label htmlFor="taskAssignee">{t('tasks.assignee')}</Label>
+            <div className="space-y-2">
+              <Label htmlFor="taskAssignee" className="text-sm font-semibold flex items-center gap-2">
+                <User className="h-3.5 w-3.5 text-primary" />
+                {t('tasks.assignee')}
+              </Label>
               <Select
                 value={taskAssignee || "none"}
                 onValueChange={(value) => setTaskAssignee(value === "none" ? undefined : value as Id<"users">)}
@@ -3218,13 +3264,13 @@ export default function ProjectView() {
 
             {/* Show tabs for both create and edit modes */}
             {(editingTask || isCreateDialogOpen) && (
-              <Tabs defaultValue="details" className="w-full">
-                <TabsList className="grid w-full grid-cols-5">
-                  <TabsTrigger value="details">{t('tasks.details')}</TabsTrigger>
-                  <TabsTrigger value="checklist">{t('tasks.checklist')}</TabsTrigger>
-                  <TabsTrigger value="tags">{t('tasks.tags')}</TabsTrigger>
-                  <TabsTrigger value="attachments">{t('tasks.attachments')}</TabsTrigger>
-                  {editingTask && <TabsTrigger value="dependencies">{t('tasks.dependencies')}</TabsTrigger>}
+              <Tabs defaultValue="details" className="w-full mt-6">
+                <TabsList className="grid w-full grid-cols-5 bg-gradient-to-r from-muted/50 to-muted/30 p-1 shadow-sm">
+                  <TabsTrigger value="details" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:to-primary/80 data-[state=active]:text-primary-foreground">{t('tasks.details')}</TabsTrigger>
+                  <TabsTrigger value="checklist" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:to-primary/80 data-[state=active]:text-primary-foreground">{t('tasks.checklist')}</TabsTrigger>
+                  <TabsTrigger value="tags" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:to-primary/80 data-[state=active]:text-primary-foreground">{t('tasks.tags')}</TabsTrigger>
+                  <TabsTrigger value="attachments" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:to-primary/80 data-[state=active]:text-primary-foreground">{t('tasks.attachments')}</TabsTrigger>
+                  {editingTask && <TabsTrigger value="dependencies" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:to-primary/80 data-[state=active]:text-primary-foreground">{t('tasks.dependencies')}</TabsTrigger>}
                 </TabsList>
 
                 <TabsContent value="details" className="space-y-4">
@@ -3414,7 +3460,7 @@ export default function ProjectView() {
               </Tabs>
             )}
 
-            <div className="flex justify-end gap-2 w-full">
+            <div className="flex justify-end gap-3 w-full pt-6 border-t mt-6">
               {editingTask && (
                 <Button
                   type="button"
@@ -3424,15 +3470,25 @@ export default function ProjectView() {
                     setIsDeleteDialogOpen(true);
                     resetForm();
                   }}
-                  className="mr-auto"
+                  className="mr-auto bg-gradient-to-r from-destructive to-destructive/80 hover:from-destructive/90 hover:to-destructive/70 shadow-md hover:shadow-lg transition-all duration-200"
                 >
+                  <Trash2 className="h-4 w-4 mr-2" />
                   {t('tasks.delete')}
                 </Button>
               )}
-              <Button type="button" variant="outline" onClick={resetForm}>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={resetForm}
+                className="hover:bg-muted/80 hover:border-muted-foreground/20 transition-all duration-200"
+              >
                 {t('tasks.cancel')}
               </Button>
-              <Button type="submit" disabled={isCreating}>
+              <Button 
+                type="submit" 
+                disabled={isCreating}
+                className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-md hover:shadow-lg transition-all duration-200 min-w-[140px]"
+              >
                 {isCreating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 {editingTask ? t('tasks.saveChanges') : t('tasks.createTask')}
               </Button>
@@ -3993,7 +4049,7 @@ export default function ProjectView() {
           />
           <Tabs value={currentView} onValueChange={(value) => setCurrentView(value as any)}>
             <div className="mb-6">
-              <TabsList className="grid w-full max-w-2xl grid-cols-5">
+              <TabsList className="grid w-full max-w-2xl grid-cols-5 bg-gradient-to-r from-muted/50 to-muted/30 p-1 shadow-sm">
                 <TabsTrigger value="list" className="flex items-center gap-2">
                   <List className="h-4 w-4" />
                   <span className="hidden sm:inline">List</span>
@@ -4022,14 +4078,19 @@ export default function ProjectView() {
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : parentTasks.length === 0 ? (
-              <Card className="shadow-md">
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <CheckCircle2 className="h-12 w-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No tasks yet</h3>
-                  <p className="text-muted-foreground text-center mb-4">
-                    Create your first task to get started
+              <Card className="border border-border shadow-lg overflow-hidden">
+                <CardContent className="flex flex-col items-center justify-center py-16 bg-gradient-to-b from-background to-muted/20">
+                  <div className="inline-block p-4 bg-muted/30 rounded-full mb-4">
+                    <CheckCircle2 className="h-16 w-16 text-muted-foreground/50" />
+                  </div>
+                  <h3 className="text-xl font-bold mb-2 text-foreground/80">No tasks yet</h3>
+                  <p className="text-muted-foreground text-center mb-6 max-w-md">
+                    Create your first task to get started with this project
                   </p>
-                  <Button onClick={() => setIsCreateDialogOpen(true)}>
+                  <Button 
+                    onClick={() => setIsCreateDialogOpen(true)}
+                    className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-md hover:shadow-lg transition-all"
+                  >
                     <Plus className="h-4 w-4 mr-2" />
                     Create Task
                   </Button>
