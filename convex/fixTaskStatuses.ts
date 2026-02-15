@@ -15,6 +15,11 @@ export const normalizeAllTaskStatuses = mutation({
 
     // Function to normalize status strings
     const normalizeStatus = (status: string): string => {
+      // Handle empty or null status
+      if (!status || status.trim() === '') {
+        return 'todo';
+      }
+      
       const normalized = status.toLowerCase().replace(/\s+/g, '_');
       // Map common variations to standard statuses
       if (normalized === 'in_progress' || normalized === 'inprogress' || normalized === 'in-progress') {
@@ -32,6 +37,13 @@ export const normalizeAllTaskStatuses = mutation({
       if (normalized === 'blocked' || normalized === 'block') {
         return 'blocked';
       }
+      
+      // If status is still not valid, default to 'todo'
+      const validStatuses = ['todo', 'in_progress', 'review', 'done', 'blocked'];
+      if (!validStatuses.includes(normalized)) {
+        return 'todo';
+      }
+      
       return normalized;
     };
 
@@ -94,6 +106,46 @@ export const normalizeAllTaskStatuses = mutation({
       updatedColumnsCount,
       taskUpdates,
       columnUpdates,
+    };
+  },
+});
+
+/**
+ * Fix tasks with invalid or empty status
+ * Sets all tasks with invalid status to 'todo'
+ */
+export const fixInvalidStatuses = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const validStatuses = ["todo", "in_progress", "review", "done", "blocked"];
+    
+    const allTasks = await ctx.db.query("tasks").collect();
+    let fixedCount = 0;
+    const fixes: Array<{ taskId: string; oldStatus: string }> = [];
+    
+    for (const task of allTasks) {
+      // Se o status for vazio, nulo ou não estiver na lista de status válidos
+      if (!task.status || !validStatuses.includes(task.status)) {
+        await ctx.db.patch(task._id, {
+          status: "todo",
+        });
+        fixes.push({
+          taskId: task._id,
+          oldStatus: task.status || '(empty)',
+        });
+        fixedCount++;
+      }
+    }
+    
+    console.log(`[Fix Invalid Statuses] Fixed ${fixedCount} tasks`);
+    console.log("[Fixes]:", JSON.stringify(fixes, null, 2));
+    
+    return {
+      success: true,
+      message: `Fixed ${fixedCount} tasks with invalid status`,
+      totalTasks: allTasks.length,
+      fixedTasks: fixedCount,
+      fixes,
     };
   },
 });

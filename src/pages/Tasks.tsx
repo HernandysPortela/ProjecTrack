@@ -49,7 +49,7 @@ export default function TasksPage(props: Props) {
   } = props;
 
   return (
-    <div className="space-y-6 p-1">
+    <div className="space-y-6 p-6">
       {/* Cabeçalho moderno com gradiente sutil */}
       <div className="flex items-start justify-between bg-gradient-to-br from-background via-background to-primary/5 rounded-xl p-6 border border-border/50 shadow-sm">
         <div className="flex items-center gap-4">

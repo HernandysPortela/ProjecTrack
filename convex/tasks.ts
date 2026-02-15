@@ -17,17 +17,27 @@ export const list = query({
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
       .collect();
 
-    // Enrich tasks with assignee name
+    // Enrich tasks with assignee name and avatar
     const tasksWithAssignee = await Promise.all(
       tasks.map(async (task) => {
         let assigneeName = null;
+        let assigneeAvatar = null;
         if (task.assigneeId) {
           const assignee = await ctx.db.get(task.assigneeId);
           assigneeName = assignee?.name || null;
+          
+          // Get avatar URL if exists
+          if (assignee?.imageId) {
+            const url = await ctx.storage.getUrl(assignee.imageId);
+            assigneeAvatar = url || null;
+          } else if (assignee?.image) {
+            assigneeAvatar = assignee.image;
+          }
         }
         return {
           ...task,
           assigneeName,
+          assigneeAvatar,
         };
       })
     );
@@ -42,7 +52,7 @@ export const create = mutation({
     projectId: v.id("projects"),
     title: v.string(),
     description: v.optional(v.string()),
-    status: v.string(),
+    status: v.optional(taskStatusValidator),
     priority: taskPriorityValidator,
     assigneeId: v.optional(v.id("users")),
     startDate: v.optional(v.number()),
@@ -85,6 +95,7 @@ export const create = mutation({
 
     const taskId = await ctx.db.insert("tasks", {
       ...args,
+      status: args.status || "todo", // Default to 'todo' if not provided
       progress: args.progress || 0,
       order,
     });
@@ -122,7 +133,7 @@ export const update = mutation({
     patch: v.object({
       title: v.optional(v.string()),
       description: v.optional(v.string()),
-      status: v.optional(v.string()),
+      status: v.optional(taskStatusValidator),
       priority: v.optional(taskPriorityValidator),
       assigneeId: v.optional(v.id("users")),
       startDate: v.optional(v.number()),

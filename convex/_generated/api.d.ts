@@ -9,6 +9,7 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as adminFixes from "../adminFixes.js";
 import type * as attachments from "../attachments.js";
 import type * as auth from "../auth.js";
 import type * as auth_emailOtp from "../auth/emailOtp.js";
@@ -25,6 +26,8 @@ import type * as debugEnv from "../debugEnv.js";
 import type * as emailService from "../emailService.js";
 import type * as emailTemplates from "../emailTemplates.js";
 import type * as exports from "../exports.js";
+import type * as fixInvalidTaskStatuses from "../fixInvalidTaskStatuses.js";
+import type * as fixTaskStatuses from "../fixTaskStatuses.js";
 import type * as fixUserRole from "../fixUserRole.js";
 import type * as http from "../http.js";
 import type * as invites from "../invites.js";
@@ -59,6 +62,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  adminFixes: typeof adminFixes;
   attachments: typeof attachments;
   auth: typeof auth;
   "auth/emailOtp": typeof auth_emailOtp;
@@ -75,6 +79,8 @@ declare const fullApi: ApiFromModules<{
   emailService: typeof emailService;
   emailTemplates: typeof emailTemplates;
   exports: typeof exports;
+  fixInvalidTaskStatuses: typeof fixInvalidTaskStatuses;
+  fixTaskStatuses: typeof fixTaskStatuses;
   fixUserRole: typeof fixUserRole;
   http: typeof http;
   invites: typeof invites;

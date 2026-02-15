@@ -59,6 +59,11 @@ export default function ProjectView() {
     projectId ? { projectId: projectId as Id<"projects"> } : "skip"
   );
 
+  const taskDependencies = useQuery(
+    api.taskDependencies.getProjectTasksWithDependencies,
+    projectId ? { projectId: projectId as Id<"projects"> } : "skip"
+  );
+
   const allTags = useQuery(
     api.tags.list,
     projectId ? { projectId: projectId as Id<"projects"> } : "skip"
@@ -361,24 +366,36 @@ export default function ProjectView() {
 
   const statusLabelMap = useMemo<Record<string, string>>(
     () => ({
-      [TASK_STATUS.TODO]: "To Do",
-      [TASK_STATUS.IN_PROGRESS]: "In Progress",
-      [TASK_STATUS.REVIEW]: "Review",
-      [TASK_STATUS.DONE]: "Done",
-      [TASK_STATUS.BLOCKED]: "Blocked",
+      [TASK_STATUS.TODO]: t('kanban.toDo'),
+      [TASK_STATUS.IN_PROGRESS]: t('kanban.inProgress'),
+      [TASK_STATUS.REVIEW]: t('kanban.review'),
+      [TASK_STATUS.DONE]: t('kanban.done'),
+      [TASK_STATUS.BLOCKED]: t('kanban.blocked'),
     }),
-    []
+    [t]
   );
 
   const priorityLabelMap = useMemo<Record<string, string>>(
     () => ({
-      [TASK_PRIORITY.LOW]: "Low",
-      [TASK_PRIORITY.MEDIUM]: "Medium",
-      [TASK_PRIORITY.HIGH]: "High",
-      [TASK_PRIORITY.URGENT]: "Urgent",
+      [TASK_PRIORITY.LOW]: t('priority.low'),
+      [TASK_PRIORITY.MEDIUM]: t('priority.medium'),
+      [TASK_PRIORITY.HIGH]: t('priority.high'),
+      [TASK_PRIORITY.URGENT]: t('priority.urgent'),
     }),
-    []
+    [t]
   );
+
+  // Helper function to translate default column names
+  const getColumnDisplayName = (columnName: string): string => {
+    const defaultColumnNames: Record<string, string> = {
+      "To Do": t('kanban.toDo'),
+      "In Progress": t('kanban.inProgress'),
+      "Review": t('kanban.review'),
+      "Done": t('kanban.done'),
+      "Blocked": t('kanban.blocked'),
+    };
+    return defaultColumnNames[columnName] || columnName;
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -1046,7 +1063,7 @@ export default function ProjectView() {
   const openColumnDialog = (column?: any) => {
     if (column) {
       setEditingColumn(column);
-      setColumnName(column.name);
+      setColumnName(getColumnDisplayName(column.name));
       setColumnColor(column.color || "#6b7280");
     } else {
       setEditingColumn(null);
@@ -1082,6 +1099,38 @@ export default function ProjectView() {
         return "bg-gradient-to-r from-yellow-500 to-yellow-600 text-white border-0 shadow-md";
       default:
         return "bg-gradient-to-r from-slate-500 to-slate-600 text-white border-0 shadow-md";
+    }
+  };
+
+  const getPriorityLabel = (priority: string) => {
+    switch (priority) {
+      case TASK_PRIORITY.URGENT:
+        return t('priority.urgent');
+      case TASK_PRIORITY.HIGH:
+        return t('priority.high');
+      case TASK_PRIORITY.MEDIUM:
+        return t('priority.medium');
+      case TASK_PRIORITY.LOW:
+        return t('priority.low');
+      default:
+        return priority;
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case TASK_STATUS.TODO:
+        return t('status.toDo');
+      case TASK_STATUS.IN_PROGRESS:
+        return t('status.inProgress');
+      case TASK_STATUS.REVIEW:
+        return t('status.review');
+      case TASK_STATUS.DONE:
+        return t('status.done');
+      case TASK_STATUS.BLOCKED:
+        return t('status.blocked');
+      default:
+        return status;
     }
   };
 
@@ -1363,13 +1412,13 @@ export default function ProjectView() {
                       {/* Priority Badge with Icon */}
                       <Badge className={`text-xs px-2 py-1 ${getPriorityColor(task.priority)} flex items-center gap-1 font-medium`}>
                         <AlertCircle className="h-3 w-3" />
-                        {task.priority === 'urgent' ? 'Urgente' : task.priority === 'high' ? 'Alta' : task.priority === 'medium' ? 'Média' : 'Baixa'}
+                        {getPriorityLabel(task.priority)}
                       </Badge>
 
                       {/* Status Badge with Icon */}
                       <Badge variant="outline" className="text-xs px-2 py-1 flex items-center gap-1">
                         {getStatusIcon(task.status, true)}
-                        {task.status === 'todo' ? 'A Fazer' : task.status === 'in_progress' ? 'Em Progresso' : task.status === 'review' ? 'Revisão' : task.status === 'done' ? 'Concluído' : 'Bloqueado'}
+                        {getStatusLabel(task.status)}
                       </Badge>
 
                       {task.assigneeName && (
@@ -1506,13 +1555,13 @@ export default function ProjectView() {
                     {/* Priority Badge with Icon */}
                     <Badge className={`text-xs px-2 py-1 ${getPriorityColor(task.priority)} flex items-center gap-1 font-medium`}>
                       <AlertCircle className="h-3 w-3" />
-                      {task.priority === 'urgent' ? 'Urgente' : task.priority === 'high' ? 'Alta' : task.priority === 'medium' ? 'Média' : 'Baixa'}
+                      {getPriorityLabel(task.priority)}
                     </Badge>
 
                     {/* Status Badge with Icon */}
                     <Badge variant="outline" className="text-xs px-2 py-1 flex items-center gap-1">
                       {getStatusIcon(task.status, true)}
-                      {task.status === 'todo' ? 'A Fazer' : task.status === 'in_progress' ? 'Em Progresso' : task.status === 'review' ? 'Revisão' : task.status === 'done' ? 'Concluído' : 'Bloqueado'}
+                      {getStatusLabel(task.status)}
                     </Badge>
 
                     {task.assigneeName && (
@@ -1651,16 +1700,16 @@ export default function ProjectView() {
     const getStatusIndicator = (status: string) => {
       switch (status) {
         case TASK_STATUS.DONE:
-          return { icon: "✓", color: "bg-green-500", label: "Done" };
+          return { icon: "✓", color: "bg-green-500", label: t('kanban.done') };
         case TASK_STATUS.IN_PROGRESS:
-          return { icon: "⟳", color: "bg-blue-500", label: "In Progress" };
+          return { icon: "⟳", color: "bg-blue-500", label: t('kanban.inProgress') };
         case TASK_STATUS.REVIEW:
-          return { icon: "👁", color: "bg-purple-500", label: "Review" };
+          return { icon: "👁", color: "bg-purple-500", label: t('kanban.review') };
         case TASK_STATUS.BLOCKED:
-          return { icon: "⚠", color: "bg-red-500", label: "Blocked" };
+          return { icon: "⚠", color: "bg-red-500", label: t('kanban.blocked') };
         case TASK_STATUS.TODO:
         default:
-          return { icon: "○", color: "bg-gray-400", label: "To Do" };
+          return { icon: "○", color: "bg-gray-400", label: t('kanban.toDo') };
       }
     };
 
@@ -1691,7 +1740,7 @@ export default function ProjectView() {
             <p className="text-xs font-medium mb-1">{subtask.title}</p>
             <div className="flex flex-wrap gap-1">
               <span className={`text-xs px-1.5 py-0.5 rounded-full ${getPriorityColor(subtask.priority)}`}>
-                {subtask.priority}
+                {getPriorityLabel(subtask.priority)}
               </span>
               {subtask.assigneeName && (
                 <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
@@ -1760,7 +1809,7 @@ export default function ProjectView() {
           </div>
           <div className="flex flex-wrap gap-1.5 mb-2">
             <span className={`text-xs px-2 py-1 rounded-md font-medium ${getPriorityColor(task.priority)}`}>
-              {task.priority}
+              {getPriorityLabel(task.priority)}
             </span>
             {task.assigneeName && (
               <span className="text-xs px-2 py-1 rounded-md bg-gradient-to-r from-primary/10 to-primary/20 text-primary font-medium border border-primary/20">
@@ -1772,7 +1821,7 @@ export default function ProjectView() {
           {hasSubtasks && (
             <div className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
               <List className="h-3.5 w-3.5" />
-              {subtasks.length} subtask{subtasks.length !== 1 ? 's' : ''}
+              {subtasks.length} {subtasks.length !== 1 ? t('kanban.subtasks') : t('kanban.subtask')}
             </div>
           )}
         </div>
@@ -1824,9 +1873,9 @@ export default function ProjectView() {
           <div className="flex-1">
             <h3 className="font-bold text-sm text-white drop-shadow-md flex items-center gap-2">
               <GripVertical className="h-4 w-4 opacity-70" />
-              {column.name}
+              {getColumnDisplayName(column.name)}
             </h3>
-            <span className="text-xs text-white/90 drop-shadow-sm font-medium ml-6">{columnTasks.length} tasks</span>
+            <span className="text-xs text-white/90 drop-shadow-sm font-medium ml-6">{columnTasks.length} {t('kanban.tasks')}</span>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1837,7 +1886,7 @@ export default function ProjectView() {
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => openColumnDialog(column)}>
                 <Edit className="h-4 w-4 mr-2" />
-                Rename
+                {t('kanban.rename')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -1917,40 +1966,40 @@ export default function ProjectView() {
           <div className="flex items-center gap-4">
             <label className="text-sm font-semibold flex items-center gap-2">
               <ArrowUpDown className="h-4 w-4 text-primary" />
-              Sort by:
+              {t('kanban.sortBy')}:
             </label>
             <Select value={sortMode} onValueChange={(value: "manual" | "priority" | "startDate" | "dueDate") => setSortMode(value)}>
               <SelectTrigger className="w-[180px] bg-background/50 border-muted focus:border-primary transition-all">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="manual">Manual Order</SelectItem>
-                <SelectItem value="priority">Priority</SelectItem>
-                <SelectItem value="dueDate">Due Date</SelectItem>
+                <SelectItem value="manual">{t('kanban.manualOrder')}</SelectItem>
+                <SelectItem value="priority">{t('kanban.priority')}</SelectItem>
+                <SelectItem value="dueDate">{t('kanban.dueDate')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="flex items-center gap-4 text-xs">
-            <span className="font-semibold text-muted-foreground">Subtask Status:</span>
+            <span className="font-semibold text-muted-foreground">{t('kanban.subtaskStatus')}:</span>
             <div className="flex items-center gap-1.5 px-2 py-1 bg-green-50 dark:bg-green-950/20 rounded-md">
               <div className="w-2 h-2 rounded-full bg-green-500 shadow-sm" />
-              <span className="font-medium text-green-700 dark:text-green-400">Done</span>
+              <span className="font-medium text-green-700 dark:text-green-400">{t('kanban.done')}</span>
             </div>
             <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-50 dark:bg-blue-950/20 rounded-md">
               <div className="w-2 h-2 rounded-full bg-blue-500 shadow-sm" />
-              <span className="font-medium text-blue-700 dark:text-blue-400">In Progress</span>
+              <span className="font-medium text-blue-700 dark:text-blue-400">{t('kanban.inProgress')}</span>
             </div>
             <div className="flex items-center gap-1.5 px-2 py-1 bg-purple-50 dark:bg-purple-950/20 rounded-md">
               <div className="w-2 h-2 rounded-full bg-purple-500 shadow-sm" />
-              <span className="font-medium text-purple-700 dark:text-purple-400">Review</span>
+              <span className="font-medium text-purple-700 dark:text-purple-400">{t('kanban.review')}</span>
             </div>
             <div className="flex items-center gap-1.5 px-2 py-1 bg-red-50 dark:bg-red-950/20 rounded-md">
               <div className="w-2 h-2 rounded-full bg-red-500 shadow-sm" />
-              <span className="font-medium text-red-700 dark:text-red-400">Blocked</span>
+              <span className="font-medium text-red-700 dark:text-red-400">{t('kanban.blocked')}</span>
             </div>
             <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-50 dark:bg-gray-950/20 rounded-md">
               <div className="w-2 h-2 rounded-full bg-gray-400 shadow-sm" />
-              <span className="font-medium text-gray-700 dark:text-gray-400">To Do</span>
+              <span className="font-medium text-gray-700 dark:text-gray-400">{t('kanban.toDo')}</span>
             </div>
           </div>
         </div>
@@ -2004,11 +2053,11 @@ export default function ProjectView() {
           <DragOverlay>
             {activeColumnId ? (
               <div className="bg-muted p-3 rounded-lg border shadow-lg opacity-90">
-                <h3 className="font-semibold text-sm">Moving column...</h3>
+                <h3 className="font-semibold text-sm">{t('kanban.movingColumn')}</h3>
               </div>
             ) : activeId ? (
               <Card className="p-3 shadow-lg opacity-90">
-                <h4 className="font-medium text-sm">Dragging task...</h4>
+                <h4 className="font-medium text-sm">{t('kanban.draggingTask')}</h4>
               </Card>
             ) : null}
           </DragOverlay>
@@ -2102,7 +2151,7 @@ export default function ProjectView() {
                         )}
                         <div className="flex flex-wrap gap-2">
                           <span className={`text-xs px-2 py-1 rounded-full ${getPriorityColor(task.priority)}`}>
-                            {task.priority}
+                            {getPriorityLabel(task.priority)}
                           </span>
                           {task.assigneeId && (
                             <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
@@ -2150,9 +2199,11 @@ export default function ProjectView() {
     const addTaskWithSubtasks = (task: any, tasksArray: any[]) => {
       tasksArray.push(task);
       
-      // If task is expanded, recursively add ALL its subtasks (even without dates)
+      // If task is expanded, recursively add its subtasks that HAVE DATES
       if (expandedTasks.has(task._id)) {
-        const subtasks = (tasks || []).filter(t => t.parentTaskId === task._id);
+        const subtasks = (tasks || []).filter(t => 
+          t.parentTaskId === task._id && t.startDate && t.dueDate
+        );
         subtasks.forEach(subtask => {
           addTaskWithSubtasks(subtask, tasksArray);
         });
@@ -2172,8 +2223,8 @@ export default function ProjectView() {
         <div className="space-y-4">
           <div className="text-center text-muted-foreground py-12">
             <GanttChart className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No tasks with both start and due dates</p>
-            <p className="text-sm mt-2">Add start and due dates to tasks to see them in the Gantt chart</p>
+            <p>{t('gantt.noTasksWithDates')}</p>
+            <p className="text-sm mt-2">{t('gantt.addDatesToSee')}</p>
           </div>
         </div>
       );
@@ -2206,18 +2257,26 @@ export default function ProjectView() {
     endDate.setDate(0); // Go back one day to get last day of original month
     endDate.setHours(0, 0, 0, 0);
     
-    const allDays: Array<{ date: Date; dayOfMonth: number; isFirstOfMonth: boolean; monthName: string; monthYear: string }> = [];
+    const allDays: Array<{ date: Date; dayOfMonth: number; isFirstOfMonth: boolean; monthName: string; monthYear: string; isWeekend: boolean; isToday: boolean }> = [];
     let currentDate = new Date(startDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     
     while (currentDate <= endDate) {
       const isFirstOfMonth = currentDate.getDate() === 1;
       const monthYear = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+      const dayOfWeek = currentDate.getDay();
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      const isToday = currentDate.getTime() === today.getTime();
+      
       allDays.push({
         date: new Date(currentDate),
         dayOfMonth: currentDate.getDate(),
         isFirstOfMonth,
         monthName: currentDate.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric', timeZone: 'America/Sao_Paulo' }),
-        monthYear: monthYear
+        monthYear: monthYear,
+        isWeekend,
+        isToday
       });
       currentDate.setDate(currentDate.getDate() + 1);
     }
@@ -2278,17 +2337,61 @@ export default function ProjectView() {
       };
     };
 
-    const getPriorityColorForBar = (priority: string) => {
-      switch (priority) {
-        case TASK_PRIORITY.URGENT:
-          return "#ef4444";
-        case TASK_PRIORITY.HIGH:
-          return "#f97316";
-        case TASK_PRIORITY.MEDIUM:
-          return "#eab308";
-        default:
-          return "#6b7280";
+    // Generate consistent color for each user based on their ID
+    const getUserColorForBar = (task: any) => {
+      // If no assignee, use gray color
+      if (!task.assigneeId) {
+        return "156, 163, 175"; // rgb for gray-400
       }
+      
+      // Simple hash function to generate consistent color from user ID
+      const hashCode = (str: string) => {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+          const char = str.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash; // Convert to 32bit integer
+        }
+        return Math.abs(hash);
+      };
+      
+      const hash = hashCode(task.assigneeId);
+      
+      // Generate HSL color with good saturation and lightness for visibility
+      // Hue based on hash (0-360)
+      const hue = hash % 360;
+      // Saturation between 65-85% for vibrant but not overwhelming colors
+      const saturation = 65 + (hash % 20);
+      // Lightness between 50-60% for good contrast on white and dark backgrounds
+      const lightness = 50 + (hash % 10);
+      
+      // Convert HSL to RGB
+      const hslToRgb = (h: number, s: number, l: number) => {
+        s = s / 100;
+        l = l / 100;
+        const k = (n: number) => (n + h / 30) % 12;
+        const a = s * Math.min(l, 1 - l);
+        const f = (n: number) =>
+          l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+        return [
+          Math.round(255 * f(0)),
+          Math.round(255 * f(8)),
+          Math.round(255 * f(4))
+        ];
+      };
+      
+      const [r, g, b] = hslToRgb(hue, saturation, lightness);
+      return `${r}, ${g}, ${b}`;
+    };
+
+    // Calculate task progress percentage
+    const getTaskProgress = (task: any) => {
+      if (task.status === TASK_STATUS.DONE) return 100;
+      if (task.status === TASK_STATUS.TODO) return 0;
+      if (task.status === TASK_STATUS.IN_PROGRESS) return 50;
+      if (task.status === TASK_STATUS.REVIEW) return 75;
+      if (task.status === TASK_STATUS.BLOCKED) return 25;
+      return 0;
     };
 
     return (
@@ -2299,7 +2402,7 @@ export default function ProjectView() {
             {/* Fixed Task Column */}
             <div className="w-64 flex-shrink-0 border-r bg-background">
               {/* Month header placeholder - matches right side month header height */}
-              <div className="p-2 font-medium border-b bg-muted/50 text-center text-sm" style={{ height: '41px', minHeight: '41px' }}>Task</div>
+              <div className="p-2 font-medium border-b bg-muted/50 text-center text-sm" style={{ height: '41px', minHeight: '41px' }}>{t('gantt.task')}</div>
               
               {/* Day header placeholder - matches right side day header height */}
               <div className="border-b bg-muted/30 text-xs py-1 px-0.5 text-center" style={{ height: '28px', minHeight: '28px' }}>&nbsp;</div>
@@ -2347,7 +2450,7 @@ export default function ProjectView() {
                         </TooltipProvider>
                         <div className="flex items-center gap-1.5 mt-1">
                           <span className={`text-xs px-1.5 py-0.5 rounded ${getPriorityColor(task.priority)}`}>
-                            {task.priority}
+                            {getPriorityLabel(task.priority)}
                           </span>
                           {task.assigneeName && (
                             <TooltipProvider delayDuration={300}>
@@ -2375,7 +2478,7 @@ export default function ProjectView() {
                                     </span>
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    <p className="text-xs">Subtask of: {parentTask.title}</p>
+                                    <p className="text-xs">{t('gantt.subtaskOf')}: {parentTask.title}</p>
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
@@ -2414,7 +2517,9 @@ export default function ProjectView() {
                   {allDays.map((day, idx) => (
                     <div
                       key={idx}
-                      className="border-r last:border-r-0 text-center text-xs py-1 px-0.5 flex items-center justify-center"
+                      className={`border-r last:border-r-0 text-center text-xs py-1 px-0.5 flex items-center justify-center ${
+                        day.isWeekend ? 'bg-muted/50' : ''
+                      } ${day.isToday ? 'bg-blue-100 dark:bg-blue-900/30 font-bold' : ''}`}
                       style={{ 
                         width: '24px',
                         minWidth: '24px',
@@ -2440,7 +2545,9 @@ export default function ProjectView() {
                         {allDays.map((day, idx) => (
                           <div
                             key={`grid-${taskIndex}-${idx}`}
-                            className="border-r border-border/30"
+                            className={`border-r border-border/30 ${
+                              day.isWeekend ? 'bg-muted/20' : ''
+                            }`}
                             style={{ 
                               width: '24px',
                               minWidth: '24px',
@@ -2453,27 +2560,197 @@ export default function ProjectView() {
                       
                       {/* Task bar */}
                       <div className="relative h-full" style={{ minWidth: `${totalDays * 24}px`, zIndex: 1 }}>
-                        <div
-                          className="absolute top-1/2 -translate-y-1/2 h-10 rounded shadow-sm hover:shadow-md transition-shadow flex items-center justify-center px-3 gap-2"
-                          style={{
-                            ...getTaskBarStyle(task),
-                            backgroundColor: getPriorityColorForBar(task.priority),
-                          }}
-                        >
-                          <span
-                            className="text-white text-sm font-semibold drop-shadow-md truncate whitespace-nowrap"
-                            style={{
-                              textShadow: '0 0 8px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,0.6)',
-                              minWidth: 'fit-content',
-                              display: 'block'
-                            }}
-                          >
-                            {task.assigneeName || 'Não atribuído'}
-                          </span>
-                        </div>
+                        {/* Only render bar if task has both dates */}
+                        {task.startDate && task.dueDate ? (
+                          <TooltipProvider delayDuration={200}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div
+                                  className="absolute top-1/2 -translate-y-1/2 h-10 rounded-lg shadow-md hover:shadow-lg transition-all cursor-pointer overflow-hidden group"
+                                  style={{
+                                    ...getTaskBarStyle(task),
+                                    background: `linear-gradient(135deg, rgba(${getUserColorForBar(task)}, 0.85) 0%, rgba(${getUserColorForBar(task)}, 0.95) 100%)`,
+                                    border: `1px solid rgba(${getUserColorForBar(task)}, 1)`,
+                                  }}
+                                >
+                                {/* Progress indicator */}
+                                <div 
+                                  className="absolute inset-0 bg-white/20 transition-all duration-300"
+                                  style={{ width: `${getTaskProgress(task)}%` }}
+                                />
+                                
+                                {/* Content */}
+                                <div className="relative h-full flex items-center justify-between px-2 gap-2">
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    {/* Avatar do usuário */}
+                                    {task.assigneeId && (
+                                      <TooltipProvider delayDuration={100}>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Avatar className="h-7 w-7 border-2 border-white shadow-md flex-shrink-0">
+                                              <AvatarImage src={task.assigneeAvatar} />
+                                              <AvatarFallback className="text-xs bg-white/90 text-gray-700">
+                                                {task.assigneeName?.substring(0, 2).toUpperCase() || 'NA'}
+                                              </AvatarFallback>
+                                            </Avatar>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top">
+                                            <p className="text-xs">{task.assigneeName}</p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    )}
+                                    
+                                    {/* Status badge */}
+                                    <div className="flex-shrink-0">
+                                      {task.status === TASK_STATUS.DONE && (
+                                        <CheckCircle2 className="h-4 w-4 text-white drop-shadow-md" />
+                                      )}
+                                      {task.status === TASK_STATUS.IN_PROGRESS && (
+                                        <Clock className="h-4 w-4 text-white drop-shadow-md" />
+                                      )}
+                                      {task.status === TASK_STATUS.BLOCKED && (
+                                        <AlertCircle className="h-4 w-4 text-white drop-shadow-md" />
+                                      )}
+                                    </div>
+                                    
+                                    <span
+                                      className="text-white text-xs font-semibold drop-shadow-md truncate whitespace-nowrap"
+                                      style={{
+                                        textShadow: '0 1px 2px rgba(0,0,0,0.4)',
+                                      }}
+                                    >
+                                      {task.title}
+                                    </span>
+                                  </div>
+                                  
+                                  {/* Progress percentage on right */}
+                                  <span className="text-xs text-white/90 font-bold flex-shrink-0 drop-shadow-md">
+                                    {getTaskProgress(task)}%
+                                  </span>
+                                </div>
+                                
+                                {/* Hover effect overlay */}
+                                <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors duration-200" />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs">
+                              <div className="space-y-2">
+                                <p className="font-semibold">{task.title}</p>
+                                <div className="space-y-1 text-xs">
+                                  <p><strong>{t('gantt.assignedTo')}:</strong> {task.assigneeName || t('gantt.notAssigned')}</p>
+                                  <p><strong>{t('gantt.status')}:</strong> {getStatusLabel(task.status)}</p>
+                                  <p><strong>{t('gantt.priority')}:</strong> {getPriorityLabel(task.priority)}</p>
+                                  <p><strong>{t('gantt.startDate')}:</strong> {new Date(task.startDate).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>
+                                  <p><strong>{t('gantt.dueDate')}:</strong> {new Date(task.dueDate).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>
+                                  <p><strong>{t('gantt.progress')}:</strong> {getTaskProgress(task)}%</p>
+                                </div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        ) : (
+                          <div className="absolute top-1/2 -translate-y-1/2 h-10 w-full flex items-center justify-center">
+                            <span className="text-xs text-muted-foreground italic">Datas não definidas</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
+                  
+                  {/* Dependency lines (SVG overlay) */}
+                  {taskDependencies && (
+                    <svg
+                      className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                      style={{ zIndex: 5 }}
+                    >
+                      <defs>
+                        <marker
+                          id="arrowhead"
+                          markerWidth="10"
+                          markerHeight="10"
+                          refX="8"
+                          refY="3"
+                          orient="auto"
+                        >
+                          <polygon points="0 0, 10 3, 0 6" fill="#3b82f6" opacity="0.7" />
+                        </marker>
+                      </defs>
+                      {tasksWithDates.map((task, taskIndex) => {
+                        const taskData = taskDependencies.find(t => t._id === task._id);
+                        if (!taskData || !taskData.dependencies || taskData.dependencies.length === 0) {
+                          return null;
+                        }
+                        
+                        return taskData.dependencies.map((dep: any, depIndex: number) => {
+                          const dependsOnTaskIndex = taskIndexMap.get(dep.dependsOnTaskId);
+                          if (dependsOnTaskIndex === undefined) return null;
+                          
+                          const dependsOnTask = tasksWithDates[dependsOnTaskIndex];
+                          if (!dependsOnTask || !dependsOnTask.startDate || !dependsOnTask.dueDate) return null;
+                          if (!task.startDate || !task.dueDate) return null;
+                          
+                          // Get bar positions using the same function that renders the bars
+                          const fromBarStyle = getTaskBarStyle(dependsOnTask);
+                          const toBarStyle = getTaskBarStyle(task);
+                          
+                          // Extract numeric values from style strings (e.g., "120px" -> 120)
+                          const fromLeft = parseFloat(fromBarStyle.left);
+                          const fromWidth = parseFloat(fromBarStyle.width);
+                          const toLeft = parseFloat(toBarStyle.left);
+                          
+                          // Calculate positions
+                          const fromY = dependsOnTaskIndex * 60 + 30; // Center of source task bar (60px height)
+                          const toY = taskIndex * 60 + 30; // Center of target task bar
+                          
+                          // Line starts from RIGHT edge of source bar
+                          const fromX = fromLeft + fromWidth;
+                          // Line ends at LEFT edge of target bar
+                          const toX = toLeft;
+                          
+                          // Create smooth curved path (like Jira)
+                          // Use cubic bezier curve for smooth horizontal-to-vertical transition
+                          const controlPointOffset = Math.min(Math.abs(toX - fromX) / 2, 50);
+                          const pathD = `M ${fromX} ${fromY} C ${fromX + controlPointOffset} ${fromY}, ${toX - controlPointOffset} ${toY}, ${toX} ${toY}`;
+                          
+                          return (
+                            <g key={`${task._id}-${dep.dependsOnTaskId}-${depIndex}`}>
+                              {/* Dependency line */}
+                              <path
+                                d={pathD}
+                                stroke="#3b82f6"
+                                strokeWidth="2"
+                                fill="none"
+                                strokeDasharray="5 3"
+                                opacity="0.7"
+                                markerEnd="url(#arrowhead)"
+                              />
+                            </g>
+                          );
+                        });
+                      })}
+                    </svg>
+                  )}
+                  
+                  {/* Today indicator - vertical line */}
+                  {(() => {
+                    const todayIndex = allDays.findIndex(day => day.isToday);
+                    if (todayIndex >= 0) {
+                      return (
+                        <div
+                          className="absolute top-0 bottom-0 w-0.5 bg-blue-600 dark:bg-blue-400 pointer-events-none"
+                          style={{
+                            left: `${todayIndex * 24 + 12}px`,
+                            zIndex: 10,
+                            boxShadow: '0 0 4px rgba(59, 130, 246, 0.5)'
+                          }}
+                        >
+                          <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full" />
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
             </div>
@@ -2481,23 +2758,76 @@ export default function ProjectView() {
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-4 text-sm text-muted-foreground border-t pt-4">
-          <span className="font-medium">Priority:</span>
+        <div className="flex flex-wrap items-center gap-6 text-sm border rounded-lg p-4 bg-muted/20">
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded" style={{ backgroundColor: "#ef4444" }} />
-            <span>Urgent</span>
+            <span className="font-semibold text-foreground">{t('gantt.legend')}:</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded" style={{ backgroundColor: "#f97316" }} />
-            <span>High</span>
+          
+          <div className="flex items-center gap-4">
+            <span className="text-muted-foreground font-medium">{t('gantt.barColors')}:</span>
+            <div className="flex items-center gap-2">
+              <User className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs">{t('gantt.colorByUser')}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-3 rounded" style={{ background: `linear-gradient(135deg, rgba(156, 163, 175, 0.85), rgba(156, 163, 175, 0.95))` }} />
+              <span className="text-xs">{t('gantt.unassignedTask')}</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded" style={{ backgroundColor: "#eab308" }} />
-            <span>Medium</span>
+          
+          <Separator orientation="vertical" className="h-6" />
+          
+          <div className="flex items-center gap-4">
+            <span className="text-muted-foreground font-medium">{t('gantt.indicators')}:</span>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-blue-600 dark:bg-blue-400 rounded-full" />
+              <span className="text-xs">{t('gantt.today')}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-3 rounded bg-muted/50" />
+              <span className="text-xs">{t('gantt.weekend')}</span>
+            </div>
           </div>
+          
+          <Separator orientation="vertical" className="h-6" />
+          
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded" style={{ backgroundColor: "#6b7280" }} />
-            <span>Low</span>
+            <span className="text-muted-foreground font-medium">{t('gantt.progress')}:</span>
+            <div className="flex items-center gap-2">
+              <div className="w-16 h-3 rounded bg-gray-600 overflow-hidden relative">
+                <div className="absolute inset-0 bg-white/20" style={{ width: '70%' }} />
+              </div>
+              <span className="text-xs">{t('gantt.indicatedInBar')}</span>
+            </div>
+          </div>
+          
+          <Separator orientation="vertical" className="h-6" />
+          
+          <div className="flex items-center gap-2">
+            <svg width="50" height="20" className="inline-block">
+              <defs>
+                <marker
+                  id="legend-arrowhead"
+                  markerWidth="8"
+                  markerHeight="8"
+                  refX="6"
+                  refY="3"
+                  orient="auto"
+                >
+                  <polygon points="0 0, 8 3, 0 6" fill="#3b82f6" opacity="0.7" />
+                </marker>
+              </defs>
+              <path
+                d="M 2 10 C 15 10, 35 10, 48 10"
+                stroke="#3b82f6"
+                strokeWidth="2"
+                fill="none"
+                strokeDasharray="5 3"
+                opacity="0.7"
+                markerEnd="url(#legend-arrowhead)"
+              />
+            </svg>
+            <span className="text-xs">{t('gantt.dependencies')}</span>
           </div>
         </div>
       </div>
@@ -2540,10 +2870,10 @@ export default function ProjectView() {
       <div className="space-y-6">
         <div className="flex flex-col gap-3 rounded-lg border border-border/60 bg-card/40 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Resumo</p>
-            <h3 className="text-xl font-bold text-foreground">Visão geral do projeto</h3>
+            <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t('projectSummary.title')}</p>
+            <h3 className="text-xl font-bold text-foreground">{t('projectSummary.overview')}</h3>
             <p className="text-sm text-muted-foreground">
-              Exporte a lista de tarefas ou acompanhe seus principais indicadores.
+              {t('projectSummary.overviewDesc')}
             </p>
           </div>
           <Button
@@ -2553,7 +2883,7 @@ export default function ProjectView() {
             disabled={!hasTasks}
           >
             <Download className="mr-2 h-4 w-4" />
-            Baixar lista em Excel
+            {t('projectSummary.downloadExcel')}
           </Button>
         </div>
 
@@ -2562,16 +2892,16 @@ export default function ProjectView() {
           <CardHeader className="bg-gradient-to-r from-background to-muted/20 border-b">
             <CardTitle className="text-xl font-bold flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-primary animate-pulse"></div>
-              Task Status Breakdown
+              {t('projectSummary.statusBreakdown')}
             </CardTitle>
-            <CardDescription className="text-sm">Distribution of tasks by status</CardDescription>
+            <CardDescription className="text-sm">{t('projectSummary.statusBreakdownDesc')}</CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Circle className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">To Do</span>
+                  <span className="text-sm font-medium">{t('status.toDo')}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="w-48 bg-muted rounded-full h-2">
@@ -2587,7 +2917,7 @@ export default function ProjectView() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm font-medium">In Progress</span>
+                  <span className="text-sm font-medium">{t('status.inProgress')}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="w-48 bg-muted rounded-full h-2">
@@ -2603,7 +2933,7 @@ export default function ProjectView() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-purple-600" />
-                  <span className="text-sm font-medium">Review</span>
+                  <span className="text-sm font-medium">{t('status.review')}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="w-48 bg-muted rounded-full h-2">
@@ -2619,7 +2949,7 @@ export default function ProjectView() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  <span className="text-sm font-medium">Done</span>
+                  <span className="text-sm font-medium">{t('status.done')}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="w-48 bg-muted rounded-full h-2">
@@ -2635,7 +2965,7 @@ export default function ProjectView() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 text-red-600" />
-                  <span className="text-sm font-medium">Blocked</span>
+                  <span className="text-sm font-medium">{t('status.blocked')}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="w-48 bg-muted rounded-full h-2">
@@ -2655,17 +2985,17 @@ export default function ProjectView() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card className="border border-border shadow-lg overflow-hidden">
             <CardHeader className="bg-gradient-to-r from-background to-muted/20 border-b">
-              <CardTitle className="text-lg font-bold">Assignment Status</CardTitle>
-              <CardDescription className="text-sm">Task assignment distribution</CardDescription>
+              <CardTitle className="text-lg font-bold">{t('projectSummary.assignmentStatus')}</CardTitle>
+              <CardDescription className="text-sm">{t('projectSummary.assignmentStatusDesc')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm">Assigned</span>
+                  <span className="text-sm">{t('projectSummary.assigned')}</span>
                   <span className="text-sm font-bold">{assignedTasks}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm">Unassigned</span>
+                  <span className="text-sm">{t('projectSummary.unassigned')}</span>
                   <span className="text-sm font-bold text-orange-600">{unassignedTasks}</span>
                 </div>
               </div>
@@ -2674,14 +3004,14 @@ export default function ProjectView() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Project Timeline</CardTitle>
-              <CardDescription>Key dates</CardDescription>
+              <CardTitle>{t('projectSummary.projectTimeline')}</CardTitle>
+              <CardDescription>{t('projectSummary.keyDates')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {project.startDate && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Start Date</span>
+                    <span className="text-sm">{t('projectSummary.startDate')}</span>
                     <span className="text-sm font-bold">
                       {new Date(project.startDate).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
                     </span>
@@ -2689,14 +3019,14 @@ export default function ProjectView() {
                 )}
                 {project.endDate && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">End Date</span>
+                    <span className="text-sm">{t('projectSummary.endDate')}</span>
                     <span className="text-sm font-bold">
                       {new Date(project.endDate).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
                     </span>
                   </div>
                 )}
                 {!project.startDate && !project.endDate && (
-                  <p className="text-sm text-muted-foreground">No timeline set</p>
+                  <p className="text-sm text-muted-foreground">{t('projectSummary.noTimeline')}</p>
                 )}
               </div>
             </CardContent>
@@ -2707,8 +3037,8 @@ export default function ProjectView() {
         {overdueTasks > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-red-600">Overdue Tasks</CardTitle>
-              <CardDescription>{overdueTasks} tasks require immediate attention</CardDescription>
+              <CardTitle className="text-red-600">{t('projectSummary.overdueTasks')}</CardTitle>
+              <CardDescription>{overdueTasks} {t('projectSummary.tasksRequireAttention')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -2728,17 +3058,17 @@ export default function ProjectView() {
                             <p className="text-sm font-medium truncate">{task.title}</p>
                           </div>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <span>Due: {new Date(task.dueDate!).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</span>
+                            <span>{t('projectSummary.due')}: {new Date(task.dueDate!).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</span>
                             <span>•</span>
-                            <span className="text-red-600 font-medium">{daysOverdue} day{daysOverdue !== 1 ? 's' : ''} overdue</span>
+                            <span className="text-red-600 font-medium">{daysOverdue} {daysOverdue !== 1 ? t('projectSummary.days') : t('projectSummary.day')} {t('projectSummary.overdue')}</span>
                           </div>
                         </div>
                         <div className="text-right ml-3">
                           <p className="text-sm font-medium">
-                            {task.assigneeId ? "Assigned" : <span className="text-orange-600">Unassigned</span>}
+                            {task.assigneeId ? t('projectSummary.assigned') : <span className="text-orange-600">{t('projectSummary.unassigned')}</span>}
                           </p>
                           <span className={`text-xs px-2 py-0.5 rounded-full ${getPriorityColor(task.priority)}`}>
-                            {task.priority}
+                            {getPriorityLabel(task.priority)}
                           </span>
                         </div>
                       </div>
@@ -3501,14 +3831,14 @@ export default function ProjectView() {
       <Dialog open={isColumnDialogOpen} onOpenChange={setIsColumnDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingColumn ? "Edit Column" : "Create Column"}</DialogTitle>
+            <DialogTitle>{editingColumn ? t('kanban.editColumn') : t('kanban.createColumn')}</DialogTitle>
             <DialogDescription>
-              {editingColumn ? "Update the column name and color" : "Add a new status column to your Kanban board"}
+              {editingColumn ? t('kanban.updateColumnDesc') : t('kanban.createColumnDesc')}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateOrUpdateColumn} className="space-y-4">
             <div>
-              <Label htmlFor="columnName">Column Name</Label>
+              <Label htmlFor="columnName">{t('kanban.columnName')}</Label>
               <Input
                 id="columnName"
                 value={columnName}
@@ -3518,7 +3848,7 @@ export default function ProjectView() {
               />
             </div>
             <div>
-              <Label htmlFor="columnColor">Color</Label>
+              <Label htmlFor="columnColor">{t('kanban.color')}</Label>
               <div className="flex items-center gap-2">
                 <Input
                   id="columnColor"
@@ -3536,11 +3866,11 @@ export default function ProjectView() {
                 variant="outline"
                 onClick={() => setIsColumnDialogOpen(false)}
               >
-                Cancel
+                {t('kanban.cancel')}
               </Button>
               <Button type="submit" disabled={isColumnCreating}>
                 {isColumnCreating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {editingColumn ? "Update" : "Create"}
+                {editingColumn ? t('kanban.update') : t('kanban.create')}
               </Button>
             </div>
           </form>

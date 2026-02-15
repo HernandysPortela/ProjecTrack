@@ -233,7 +233,7 @@ export function TaskTable({ filteredTasks, t }: TaskTableProps) {
         <Table>
         <TableHeader className="bg-gradient-to-r from-muted/50 to-muted/30">
           <TableRow className="hover:bg-transparent border-b border-border/50">
-            <TableHead data-col="task" style={{ width: colWidths.task, whiteSpace: 'normal' }} className="break-words relative font-semibold text-foreground/90">
+            <TableHead data-col="task" style={{ width: colWidths.task, whiteSpace: 'normal' }} className="break-words relative font-semibold text-foreground/90 pl-6">
               <div className="pr-2">{t('tasks.title') || 'Tarefa'}</div>
               <div
                 onMouseDown={(e) => startResize('task', e)}
@@ -258,7 +258,7 @@ export function TaskTable({ filteredTasks, t }: TaskTableProps) {
               <div className="pr-2">{t('tasks.dueDate')}</div>
               <div onMouseDown={(e) => startResize('dueDate', e)} onDoubleClick={() => autoFitColumn('dueDate')} className="absolute right-0 top-0 h-full w-2 cursor-col-resize" />
             </TableHead>
-            <TableHead data-col="assignee" style={{ width: colWidths.assignee }} className="relative font-semibold text-foreground/90">
+            <TableHead data-col="assignee" style={{ width: colWidths.assignee }} className="relative font-semibold text-foreground/90 pr-6">
               <div className="pr-2">{t('tasks.assignedTo')}</div>
               <div onMouseDown={(e) => startResize('assignee', e)} onDoubleClick={() => autoFitColumn('assignee')} className="absolute right-0 top-0 h-full w-2 cursor-col-resize" />
             </TableHead>
@@ -273,7 +273,7 @@ export function TaskTable({ filteredTasks, t }: TaskTableProps) {
               <TableCell 
                 data-col="task" 
                 style={{ width: colWidths.task, whiteSpace: 'normal' }} 
-                className="font-semibold break-words pr-2 text-foreground/90 group-hover:text-foreground transition-colors"
+                className="font-semibold break-words pr-2 text-foreground/90 group-hover:text-foreground transition-colors pl-6"
               >
                 {task.title}
               </TableCell>
@@ -394,6 +394,7 @@ export function TaskTable({ filteredTasks, t }: TaskTableProps) {
                 data-col="assignee" 
                 data-editable
                 style={{ width: colWidths.assignee }}
+                className="pr-6"
                 onClick={() => startEditing(task._id, 'assignee', task.assigneeId, task.projectId)}
               >
                 {editingCell?.taskId === task._id && editingCell?.field === 'assignee' ? (
