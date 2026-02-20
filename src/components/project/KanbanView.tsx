@@ -3,7 +3,7 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TaskCard } from "./TaskCard";
-import { Id } from "@/convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import { useState } from "react";
 
 interface KanbanViewProps {

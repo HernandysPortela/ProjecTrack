@@ -9,18 +9,22 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, ArrowLeft, FolderKanban, Plus, Download, TrendingUp, Edit2, Check, X, Search } from "lucide-react";
+import { Loader2, ArrowLeft, FolderKanban, Plus, Download, TrendingUp, Edit2, Check, X, Search, Folder, ChevronDown, ChevronRight, MoreVertical, FolderOpen } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { Id } from "@convex/_generated/dataModel";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Badge } from "@/components/ui/badge";
+import { FolderForm, FolderActions } from "@/components/FolderManager";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface WorkgroupViewProps {
   workgroupId?: string;
+  embedded?: boolean;
+  onBack?: () => void;
 }
 
-export default function WorkgroupView({ workgroupId: propWorkgroupId }: WorkgroupViewProps = {}) {
+export default function WorkgroupView({ workgroupId: propWorkgroupId, embedded, onBack }: WorkgroupViewProps = {}) {
   const { isLoading, isAuthenticated, user } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
@@ -42,9 +46,16 @@ export default function WorkgroupView({ workgroupId: propWorkgroupId }: Workgrou
     workgroupId ? { workgroupId: workgroupId as Id<"workgroups"> } : "skip"
   );
 
+  const folders = useQuery(
+    api.folders.list,
+    workgroupId ? { workgroupId: workgroupId as Id<"workgroups"> } : "skip"
+  );
+
   const createProject = useMutation(api.projects.create);
   const updateProjectStatus = useMutation(api.projects.updateStatus);
   const updatePriority = useMutation(api.projects.updatePriority);
+  const moveProjectToFolder = useMutation(api.folders.moveProjectToFolder);
+  const toggleFolderCollapse = useMutation(api.folders.update);
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [projectName, setProjectName] = useState("");
@@ -55,6 +66,8 @@ export default function WorkgroupView({ workgroupId: propWorkgroupId }: Workgrou
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [editingPriority, setEditingPriority] = useState<Id<"projects"> | null>(null);
   const [priorityValue, setPriorityValue] = useState<number>(1);
+  const [draggingProjectId, setDraggingProjectId] = useState<Id<"projects"> | null>(null);
+  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
 
   const downloadProjectsAsExcel = useCallback(() => {
     if (!exportData || exportData.length === 0) {
@@ -271,6 +284,34 @@ export default function WorkgroupView({ workgroupId: propWorkgroupId }: Workgrou
     return aPriority - bPriority;
   });
 
+  // Group filtered projects by folder
+  const projectsByFolder = filteredProjects.reduce((acc: Record<string, any[]>, project: any) => {
+    const folderId = project.folderId || "no-folder";
+    if (!acc[folderId]) {
+      acc[folderId] = [];
+    }
+    acc[folderId].push(project);
+    return acc;
+  }, {} as Record<string, any[]>);
+
+  const handleMoveToFolder = async (projectId: Id<"projects">, folderId: Id<"folders"> | undefined) => {
+    try {
+      await moveProjectToFolder({ projectId, folderId });
+      toast.success(t("folders.projectMoved"));
+    } catch (error) {
+      console.error("Error moving project:", error);
+      toast.error(t("folders.errorMoving"));
+    }
+  };
+
+  const handleToggleFolder = async (folderId: Id<"folders">, isCollapsed: boolean) => {
+    try {
+      await toggleFolderCollapse({ id: folderId, isCollapsed: !isCollapsed });
+    } catch (error) {
+      console.error("Error toggling folder:", error);
+    }
+  };
+
   const handleStatusChange = async (projectId: Id<"projects">, newStatus: string) => {
     try {
       await updateProjectStatus({ projectId, status: newStatus });
@@ -292,6 +333,61 @@ export default function WorkgroupView({ workgroupId: propWorkgroupId }: Workgrou
     } catch (error) {
       toast.error(t("projects.priorityUpdateFailed"));
       console.error(error);
+    }
+  };
+
+  // Drag & Drop handlers
+  const handleDragStart = (e: React.DragEvent, projectId: Id<"projects">) => {
+    e.dataTransfer.setData("text/plain", projectId);
+    e.dataTransfer.effectAllowed = "move";
+    setDraggingProjectId(projectId);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingProjectId(null);
+    setDragOverFolderId(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent, folderId: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverFolderId !== folderId) {
+      setDragOverFolderId(folderId);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    // Only clear if leaving the drop zone entirely (not entering a child)
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    if (!e.currentTarget.contains(relatedTarget)) {
+      setDragOverFolderId(null);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetFolderId: string | undefined) => {
+    e.preventDefault();
+    const projectId = e.dataTransfer.getData("text/plain") as Id<"projects">;
+    setDraggingProjectId(null);
+    setDragOverFolderId(null);
+
+    if (!projectId) return;
+
+    // Find the project's current folder
+    const project = filteredProjects.find((p: any) => p._id === projectId);
+    if (!project) return;
+
+    const currentFolderId = project.folderId || undefined;
+    if (currentFolderId === targetFolderId) return; // No change
+
+    try {
+      await moveProjectToFolder({
+        projectId: projectId,
+        folderId: targetFolderId as Id<"folders"> | undefined,
+      });
+      toast.success(t("folders.projectMoved"));
+    } catch (error) {
+      console.error("Error moving project:", error);
+      toast.error(t("folders.errorMoving"));
     }
   };
 
@@ -345,19 +441,21 @@ export default function WorkgroupView({ workgroupId: propWorkgroupId }: Workgrou
   const canCreateProject = workgroup?.role === "owner" || workgroup?.role === "manager";
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-card shadow-sm">
-        <div className="flex h-16 items-center gap-4 px-6 max-w-[98%] mx-auto">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="flex items-center gap-3">
-            <img src="/logo.svg" alt="ProjecTrak" className="h-8 w-8" />
-            <h1 className="text-xl font-bold tracking-tight">{workgroup.name}</h1>
+    <div className={embedded ? "bg-background" : "min-h-screen bg-background"}>
+      {/* Header - only show when NOT embedded in Dashboard */}
+      {!embedded && (
+        <header className="sticky top-0 z-50 w-full border-b bg-card shadow-sm">
+          <div className="flex h-16 items-center gap-4 px-6 max-w-[98%] mx-auto">
+            <Button variant="ghost" size="icon" onClick={() => onBack ? onBack() : navigate("/dashboard")}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex items-center gap-3">
+              <img src="/logo.svg" alt="ProjecTrak" className="h-8 w-8" />
+              <h1 className="text-xl font-bold tracking-tight">{workgroup.name}</h1>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       {/* Main Content */}
       <main className="w-full mx-auto px-6 py-8 max-w-[98%]">
@@ -413,6 +511,9 @@ export default function WorkgroupView({ workgroupId: propWorkgroupId }: Workgrou
                   <Download className="h-4 w-4 mr-2" />
                   Baixar em Excel
                 </Button>
+                {canCreateProject && workgroupId && (
+                  <FolderForm workgroupId={workgroupId as Id<"workgroups">} />
+                )}
                 {canCreateProject && (
                   <Button className="shadow-md" onClick={() => setIsCreateDialogOpen(true)}>
                     <Plus className="h-4 w-4 mr-2" />
@@ -505,120 +606,337 @@ export default function WorkgroupView({ workgroupId: propWorkgroupId }: Workgrou
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {filteredProjects.map((project: any, index: number) => {
-                const isEditingThisPriority = editingPriority === project._id;
+            <div className="space-y-2">
+              {/* Folders with projects */}
+              {folders && folders.map((folder: any) => {
+                const folderProjects = projectsByFolder[folder._id] || [];
+                if (folderProjects.length === 0 && !canCreateProject) return null;
 
                 return (
-                  <motion.div
-                    key={project._id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: index * 0.1 }}
+                  <div
+                    key={folder._id}
+                    className={`transition-colors ${
+                      dragOverFolderId === folder._id
+                        ? "bg-primary/5 ring-1 ring-primary/30 rounded-lg"
+                        : ""
+                    }`}
+                    onDragOver={(e) => handleDragOver(e, folder._id)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, folder._id)}
                   >
-                    <Card
-                      className="shadow-md hover:shadow-lg transition-shadow cursor-pointer"
-                      onClick={() => navigate(`/project/${project._id}`)}
-                    >
-                      <CardHeader>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: project.color }}
-                            />
-                            <CardTitle className="text-lg">{project.name}</CardTitle>
-                          </div>
-                          <select
-                            value={project.status || "in_progress"}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              handleStatusChange(project._id, e.target.value);
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="h-7 rounded-md border border-input bg-background px-2 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                          >
-                            <option value="in_progress">Em Andamento</option>
-                            <option value="paused">Pausado</option>
-                            <option value="finished">Finalizado</option>
-                          </select>
-                        </div>
-                        {project.description && (
-                          <CardDescription className="line-clamp-2">
-                            {project.description}
-                          </CardDescription>
+                    {/* Folder row - clean list style */}
+                    <div className="flex items-center justify-between py-4 px-2 border-b border-border/40 hover:bg-muted/30 transition-colors rounded-sm group">
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => handleToggleFolder(folder._id, folder.isCollapsed || false)}
+                          className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
+                        >
+                          {folder.isCollapsed ? (
+                            <ChevronRight className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </button>
+                        <FolderOpen className="h-5 w-5" style={{ color: folder.color || '#6366f1' }} />
+                        <span className="font-semibold text-base">{folder.name}</span>
+                        {folder.description && (
+                          <span className="text-sm text-muted-foreground hidden sm:inline">— {folder.description}</span>
                         )}
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex items-center justify-between">
-                          <div className="text-sm text-muted-foreground">
-                            {project.taskCount} tasks
-                          </div>
+                        <span
+                          className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full text-xs font-bold text-white"
+                          style={{ backgroundColor: folder.color || '#6366f1' }}
+                        >
+                          {folderProjects.length}
+                        </span>
+                      </div>
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                        {canCreateProject && (
+                          <FolderActions
+                            workgroupId={workgroupId as Id<"workgroups">}
+                            folder={{ _id: folder._id, name: folder.name, description: folder.description, color: folder.color }}
+                          />
+                        )}
+                      </div>
+                    </div>
+                    {!folder.isCollapsed && (
+                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pl-10 pr-2 py-4">
+                        {folderProjects.map((project: any, index: number) => {
+                          const isEditingThisPriority = editingPriority === project._id;
 
-                          {/* Priority section */}
-                          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                            {isEditingThisPriority ? (
-                              <div className="flex items-center gap-1">
-                                <Input
-                                  type="number"
-                                  min="1"
-                                  value={priorityValue}
-                                  onChange={(e) => setPriorityValue(parseInt(e.target.value) || 1)}
-                                  className="w-16 h-7 text-xs"
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 w-7 p-0"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleSavePriority(project._id);
-                                  }}
-                                >
-                                  <Check className="h-4 w-4 text-green-600" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 w-7 p-0"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingPriority(null);
-                                  }}
-                                >
-                                  <X className="h-4 w-4 text-red-600" />
-                                </Button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-1">
-                                {project.priority && (
-                                  <Badge variant="secondary" className="text-xs">
-                                    <TrendingUp className="w-3 h-3 mr-1" />
-                                    {project.priority}
-                                  </Badge>
+                          return (
+                            <motion.div
+                              key={project._id}
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.3, delay: index * 0.05 }}
+                              draggable={canCreateProject}
+                              onDragStart={(e) => handleDragStart(e, project._id)}
+                              onDragEnd={handleDragEnd}
+                            >
+                              <Card
+                                className={`shadow-md hover:shadow-lg transition-shadow cursor-pointer relative ${
+                                  draggingProjectId === project._id ? "opacity-50 ring-2 ring-primary" : ""
+                                } ${canCreateProject ? "cursor-grab active:cursor-grabbing" : ""}`}
+                                onClick={() => navigate(`/project/${project._id}`)}
+                              >
+                                {/* Folder move menu */}
+                                {canCreateProject && (
+                                  <div className="absolute top-2 right-2 z-10">
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 hover:opacity-100">
+                                          <MoreVertical className="h-4 w-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleMoveToFolder(project._id, undefined);
+                                        }}>
+                                          {t("folders.removeFromFolder")}
+                                        </DropdownMenuItem>
+                                        {folders.filter((f: any) => f._id !== folder._id).map((f: any) => (
+                                          <DropdownMenuItem
+                                            key={f._id}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleMoveToFolder(project._id, f._id);
+                                            }}
+                                          >
+                                            <Folder className="h-4 w-4 mr-2" style={{ color: f.color }} />
+                                            {t("folders.moveTo")} {f.name}
+                                          </DropdownMenuItem>
+                                        ))}
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </div>
                                 )}
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 w-7 p-0"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingPriority(project._id);
-                                    setPriorityValue(project.priority ?? 1);
-                                  }}
-                                >
-                                  <Edit2 className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
+                                <CardHeader>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-3">
+                                      <div
+                                        className="w-3 h-3 rounded-full"
+                                        style={{ backgroundColor: project.color }}
+                                      />
+                                      <CardTitle className="text-lg">{project.name}</CardTitle>
+                                    </div>
+                                    <select
+                                      value={project.status || "in_progress"}
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                        handleStatusChange(project._id, e.target.value);
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="h-7 rounded-md border border-input bg-background px-2 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                                    >
+                                      <option value="in_progress">Em Andamento</option>
+                                      <option value="paused">Pausado</option>
+                                      <option value="finished">Finalizado</option>
+                                    </select>
+                                  </div>
+                                  {project.description && (
+                                    <CardDescription className="line-clamp-2">
+                                      {project.description}
+                                    </CardDescription>
+                                  )}
+                                </CardHeader>
+                                <CardContent>
+                                  <div className="flex items-center justify-between">
+                                    <div className="text-sm text-muted-foreground">
+                                      {project.taskCount} tasks
+                                    </div>
+                                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                      {isEditingThisPriority ? (
+                                        <div className="flex items-center gap-1">
+                                          <Input
+                                            type="number"
+                                            min="1"
+                                            value={priorityValue}
+                                            onChange={(e) => setPriorityValue(parseInt(e.target.value) || 1)}
+                                            className="w-16 h-7 text-xs"
+                                            onClick={(e) => e.stopPropagation()}
+                                          />
+                                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); handleSavePriority(project._id); }}>
+                                            <Check className="h-4 w-4 text-green-600" />
+                                          </Button>
+                                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); setEditingPriority(null); }}>
+                                            <X className="h-4 w-4 text-red-600" />
+                                          </Button>
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center gap-1">
+                                          {project.priority && (
+                                            <Badge variant="secondary" className="text-xs">
+                                              <TrendingUp className="w-3 h-3 mr-1" />
+                                              {project.priority}
+                                            </Badge>
+                                          )}
+                                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); setEditingPriority(project._id); setPriorityValue(project.priority ?? 1); }}>
+                                            <Edit2 className="h-3 w-3" />
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
+
+              {/* Empty folders (no projects matched filter) */}
+              {folders && folders.filter((folder: any) => {
+                const folderProjects = projectsByFolder[folder._id] || [];
+                return folderProjects.length === 0 && canCreateProject;
+              }).length > 0 && null}
+
+              {/* Projects without folder */}
+              {projectsByFolder["no-folder"] && projectsByFolder["no-folder"].length > 0 && (
+                <div
+                  className={`transition-colors ${
+                    dragOverFolderId === "no-folder"
+                      ? "bg-muted/40 ring-1 ring-muted-foreground/20 rounded-lg"
+                      : ""
+                  }`}
+                  onDragOver={(e) => handleDragOver(e, "no-folder")}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, undefined)}
+                >
+                  {folders && folders.length > 0 && (
+                    <div className="flex items-center gap-3 py-4 px-2 border-b border-border/40">
+                      <Folder className="h-5 w-5 text-muted-foreground" />
+                      <span className="font-semibold text-base">{t("folders.withoutFolder")}</span>
+                      <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full text-xs font-bold text-white bg-gray-400">
+                        {projectsByFolder["no-folder"].length}
+                      </span>
+                    </div>
+                  )}
+                  <div className={`grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 py-4 ${folders && folders.length > 0 ? "pl-10 pr-2" : ""}`}>
+                    {projectsByFolder["no-folder"].map((project: any, index: number) => {
+                      const isEditingThisPriority = editingPriority === project._id;
+
+                      return (
+                        <motion.div
+                          key={project._id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3, delay: index * 0.05 }}
+                          draggable={canCreateProject && folders && folders.length > 0}
+                          onDragStart={(e) => handleDragStart(e, project._id)}
+                          onDragEnd={handleDragEnd}
+                        >
+                          <Card
+                            className={`shadow-md hover:shadow-lg transition-shadow cursor-pointer relative ${
+                              draggingProjectId === project._id ? "opacity-50 ring-2 ring-primary" : ""
+                            } ${canCreateProject && folders && folders.length > 0 ? "cursor-grab active:cursor-grabbing" : ""}`}
+                            onClick={() => navigate(`/project/${project._id}`)}
+                          >
+                            {/* Folder move menu */}
+                            {canCreateProject && folders && folders.length > 0 && (
+                              <div className="absolute top-2 right-2 z-10">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                      <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    {folders.map((f: any) => (
+                                      <DropdownMenuItem
+                                        key={f._id}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleMoveToFolder(project._id, f._id);
+                                        }}
+                                      >
+                                        <Folder className="h-4 w-4 mr-2" style={{ color: f.color }} />
+                                        {t("folders.moveTo")} {f.name}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            )}
+                            <CardHeader>
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-3">
+                                  <div
+                                    className="w-3 h-3 rounded-full"
+                                    style={{ backgroundColor: project.color }}
+                                  />
+                                  <CardTitle className="text-lg">{project.name}</CardTitle>
+                                </div>
+                                <select
+                                  value={project.status || "in_progress"}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    handleStatusChange(project._id, e.target.value);
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="h-7 rounded-md border border-input bg-background px-2 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                                >
+                                  <option value="in_progress">Em Andamento</option>
+                                  <option value="paused">Pausado</option>
+                                  <option value="finished">Finalizado</option>
+                                </select>
+                              </div>
+                              {project.description && (
+                                <CardDescription className="line-clamp-2">
+                                  {project.description}
+                                </CardDescription>
+                              )}
+                            </CardHeader>
+                            <CardContent>
+                              <div className="flex items-center justify-between">
+                                <div className="text-sm text-muted-foreground">
+                                  {project.taskCount} tasks
+                                </div>
+                                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                  {isEditingThisPriority ? (
+                                    <div className="flex items-center gap-1">
+                                      <Input
+                                        type="number"
+                                        min="1"
+                                        value={priorityValue}
+                                        onChange={(e) => setPriorityValue(parseInt(e.target.value) || 1)}
+                                        className="w-16 h-7 text-xs"
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); handleSavePriority(project._id); }}>
+                                        <Check className="h-4 w-4 text-green-600" />
+                                      </Button>
+                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); setEditingPriority(null); }}>
+                                        <X className="h-4 w-4 text-red-600" />
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1">
+                                      {project.priority && (
+                                        <Badge variant="secondary" className="text-xs">
+                                          <TrendingUp className="w-3 h-3 mr-1" />
+                                          {project.priority}
+                                        </Badge>
+                                      )}
+                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); setEditingPriority(project._id); setPriorityValue(project.priority ?? 1); }}>
+                                        <Edit2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </motion.div>

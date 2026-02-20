@@ -17,7 +17,7 @@ import {
   CheckCircle2,
   ListFilter
 } from "lucide-react";
-import { Id } from "@/convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import { useState } from "react";
 
 export interface ProjectFiltersState {

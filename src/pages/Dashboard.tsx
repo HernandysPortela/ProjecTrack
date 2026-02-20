@@ -46,10 +46,12 @@ import {
   Edit,
   Trash2,
   ArrowRight,
+  ArrowLeft,
   Home,
   User,
   Ban,
   Unlock,
+  RefreshCw,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { motion } from "framer-motion";
@@ -410,7 +412,7 @@ export default function Dashboard() {
   const currentWorkspaceSettings = reminderSettings?.find(s => s.workgroupId === selectedWorkspace?._id);
 
   const recentEmailLogs = useQuery(api.notifications.getRecentEmailLogs, currentUser ? { userId: currentUser._id } : "skip");
-  const invites = useQuery(api.invites.list, selectedWorkspaceId ? { workgroupId: selectedWorkspaceId } : "skip");
+  const invites = useQuery(api.invites.listAll) || [];
 
   const workspaceMembers = useQuery(
     api.workgroups.listMembers,
@@ -420,6 +422,7 @@ export default function Dashboard() {
   // Mutations
   const sendInvite = useMutation(api.invites.create);
   const cancelInvite = useMutation(api.invites.cancel);
+  const resendInvite = useMutation(api.invites.resend);
   const createWorkgroup = useMutation(api.workgroups.create);
   // const updateWorkgroup = useMutation(api.workgroups.updateWorkgroup); // Removed as it doesn't exist
   const deleteWorkgroup = useMutation(api.workgroups.deleteWorkgroup);
@@ -858,7 +861,8 @@ export default function Dashboard() {
   };
 
   // Invite handlers
-  const handleSendInvite = async () => {
+  const handleSendInvite = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!inviteEmail || !inviteName) {
       toast.error(t('messages.error.fillAllFields'));
       return;
@@ -898,6 +902,15 @@ export default function Dashboard() {
       toast.success(t('messages.success.inviteCancelled'));
     } catch (error: any) {
       toast.error(error.message || t('messages.error.cancelInvite'));
+    }
+  };
+
+  const handleResendInvite = async (inviteId: Id<"invites">) => {
+    try {
+      await resendInvite({ id: inviteId });
+      toast.success(t('messages.success.inviteResent') || "Convite reenviado com sucesso!");
+    } catch (error: any) {
+      toast.error(error.message || t('messages.error.resendInvite') || "Erro ao reenviar convite");
     }
   };
 
@@ -985,6 +998,23 @@ export default function Dashboard() {
         return false;
       }
 
+      // Due date filter
+      if (taskDueDateFilter !== "all") {
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        if (taskDueDateFilter === "overdue") {
+          if (!task.dueDate) return false;
+          const due = new Date(task.dueDate);
+          due.setHours(0, 0, 0, 0);
+          if (due >= now) return false;
+        } else if (taskDueDateFilter === "onTime") {
+          if (!task.dueDate) return true;
+          const due = new Date(task.dueDate);
+          due.setHours(0, 0, 0, 0);
+          if (due < now) return false;
+        }
+      }
+
       return true;
     });
 
@@ -1012,7 +1042,7 @@ export default function Dashboard() {
     });
 
     return sorted;
-  }, [dashboardOverview?.myTasksList, dashboardOverview?.myExternalTasksList, dashboardOverview?.allAccessibleTasks, dashboardOverview?.projects, taskProjectFilter, taskPriorityFilter, taskAssigneeFilter, taskStatusFilter, taskSortBy]);
+  }, [dashboardOverview?.myTasksList, dashboardOverview?.myExternalTasksList, dashboardOverview?.allAccessibleTasks, dashboardOverview?.projects, taskProjectFilter, taskPriorityFilter, taskAssigneeFilter, taskStatusFilter, taskDueDateFilter, taskSortBy]);
 
   const taskProjects = useMemo(() => {
     // Use allAccessibleTasks if available, fallback to combined lists
@@ -1071,7 +1101,7 @@ export default function Dashboard() {
 
   const renderContent = () => {
     if (selectedWorkgroupId) {
-      return <WorkgroupView workgroupId={selectedWorkgroupId} />;
+      return <WorkgroupView workgroupId={selectedWorkgroupId} embedded onBack={() => setSelectedWorkgroupId(null)} />;
     }
 
     switch (currentSection) {
@@ -1872,36 +1902,103 @@ export default function Dashboard() {
                   </p>
                 ) : (
                   <div className="space-y-3">
-                    {invites.map((invite) => (
-                      <div
-                        key={invite._id}
-                        className="flex items-center justify-between p-3 border rounded-lg"
-                      >
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{invite.email}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {workspaces.find(w => w._id === invite.workgroupId)?.name || t('invites.unknown')} • {invite.status}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {t('invites.sent')} {new Date(invite._creationTime).toLocaleDateString()}
-                          </p>
-                        </div>
-                        {invite.status === "pending" && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleCancelInvite(invite._id)}
-                            disabled={cancellingInviteId === invite._id}
-                          >
-                            {cancellingInviteId === invite._id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              t('invites.cancel')
+                    {invites.map((invite) => {
+                      const isExpired = invite.isExpired || (invite.status === "pending" && invite.expiresAt ? invite.expiresAt < Date.now() : false);
+                      const isPending = invite.status === "pending" && !isExpired;
+                      const isAccepted = invite.status === "accepted";
+                      const isCancelled = invite.status === "cancelled";
+                      const sentDate = invite.sentAt ? new Date(invite.sentAt) : new Date(invite._creationTime);
+                      const expiresDate = invite.expiresAt ? new Date(invite.expiresAt) : null;
+                      
+                      const statusBadge = isAccepted
+                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                        : isCancelled
+                          ? "bg-gray-100 text-gray-500 dark:bg-gray-800/30 dark:text-gray-400"
+                          : isExpired
+                            ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                            : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
+
+                      const statusLabel = isAccepted
+                        ? (t('invites.accepted') || "Aceito")
+                        : isCancelled
+                          ? (t('invites.cancelled') || "Cancelado")
+                          : isExpired
+                            ? (t('invites.expired') || "Expirado")
+                            : (t('invites.pending') || "Pendente");
+
+                      return (
+                        <div
+                          key={invite._id}
+                          className={`flex items-center justify-between p-4 border rounded-lg transition-colors ${
+                            !isPending ? "bg-muted/40 border-dashed opacity-75" : "hover:bg-muted/30"
+                          }`}
+                        >
+                          <div className="flex-1 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-semibold">{invite.name}</p>
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${statusBadge}`}>
+                                {statusLabel}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">{invite.email}</p>
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                              <span className="inline-flex items-center gap-1">
+                                <span className="inline-block w-2 h-2 rounded-full bg-primary/60"></span>
+                                {invite.roleName || invite.role}
+                              </span>
+                              <span>•</span>
+                              <span>{invite.workgroupName}</span>
+                              <span>•</span>
+                              <span>{t('invites.sent')} {sentDate.toLocaleDateString()}</span>
+                              {expiresDate && isPending && (
+                                <>
+                                  <span>•</span>
+                                  <span>{t('invites.expiresAt') || "Expira em"} {expiresDate.toLocaleDateString()}</span>
+                                </>
+                              )}
+                              {invite.inviterName && (
+                                <>
+                                  <span>•</span>
+                                  <span>{t('invites.invitedBy') || "por"} {invite.inviterName}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {isPending && (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleResendInvite(invite._id)}
+                                  title={t('invites.resend') || "Reenviar convite"}
+                                  className="text-xs"
+                                >
+                                  <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                                  {t('invites.resend') || "Reenviar"}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleCancelInvite(invite._id)}
+                                  disabled={cancellingInviteId === invite._id}
+                                  className="text-destructive hover:text-destructive text-xs"
+                                >
+                                  {cancellingInviteId === invite._id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <X className="h-3.5 w-3.5 mr-1" />
+                                      {t('invites.cancel')}
+                                    </>
+                                  )}
+                                </Button>
+                              </>
                             )}
-                          </Button>
-                        )}
-                      </div>
-                    ))}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>
@@ -2185,7 +2282,7 @@ export default function Dashboard() {
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     isActive={currentSection === "users"}
-                    onClick={() => setCurrentSection("users")}
+                    onClick={() => { setSelectedWorkgroupId(null); setCurrentSection("users"); }}
                   >
                     <Users className="h-4 w-4" />
                     <span>{t('navigation.users')}</span>
@@ -2197,7 +2294,7 @@ export default function Dashboard() {
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     isActive={currentSection === "teams"}
-                    onClick={() => setCurrentSection("teams")}
+                    onClick={() => { setSelectedWorkgroupId(null); setCurrentSection("teams"); }}
                   >
                     <Users className="h-4 w-4" />
                     <span>{t('navigation.teams')}</span>
@@ -2208,7 +2305,7 @@ export default function Dashboard() {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   isActive={currentSection === "reminders"}
-                  onClick={() => setCurrentSection("reminders")}
+                  onClick={() => { setSelectedWorkgroupId(null); setCurrentSection("reminders"); }}
                 >
                   <Bell className="h-4 w-4" />
                   <span>{t('reminders.title')}</span>
@@ -2218,7 +2315,7 @@ export default function Dashboard() {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   isActive={currentSection === "invites"}
-                  onClick={() => setCurrentSection("invites")}
+                  onClick={() => { setSelectedWorkgroupId(null); setCurrentSection("invites"); }}
                 >
                   <Mail className="h-4 w-4" />
                   <span>{t('invites.title')}</span>
@@ -2305,7 +2402,8 @@ export default function Dashboard() {
                         <div className="flex items-center w-full group">
                           <SidebarMenuButton
                             onClick={() => {
-                              navigate(`/workgroup/${workgroup._id}`);
+                              setSelectedWorkgroupId(workgroup._id);
+                              setCurrentSection("dashboard");
                             }}
                             isActive={selectedWorkgroupId === workgroup._id}
                             className="flex-1"
@@ -2349,39 +2447,6 @@ export default function Dashboard() {
               </SidebarGroupContent>
             </SidebarGroup>
 
-            {/* Projects (shown when workspace selected) */}
-            {selectedWorkgroupId && (
-              <>
-                <Separator className="my-2" />
-                <SidebarGroup>
-                  <SidebarGroupLabel>{t('common.projects')}</SidebarGroupLabel>
-                  <SidebarGroupContent>
-                    <SidebarMenu>
-                      {!selectedWorkgroupProjects ? (
-                        <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                          <Loader2 className="h-4 w-4 animate-spin mx-auto" />
-                        </div>
-                      ) : filteredProjects && filteredProjects.length === 0 ? (
-                        <div className="px-2 py-4 text-center text-xs text-muted-foreground">
-                          {t('common.noProjectsYet')}
-                        </div>
-                      ) : (
-                        selectedWorkgroupProjects.map((project) => (
-                          <SidebarMenuItem key={project._id}>
-                            <SidebarMenuButton
-                              onClick={() => navigate(`/project/${project._id}`)}
-                            >
-                              <Briefcase className="h-4 w-4" />
-                              <span>{project.name}</span>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        ))
-                      )}
-                    </SidebarMenu>
-                  </SidebarGroupContent>
-                </SidebarGroup>
-              </>
-            )}
           </SidebarContent>
 
           <SidebarFooter className="border-t p-4">
@@ -2395,18 +2460,28 @@ export default function Dashboard() {
         <SidebarInset className="flex-1">
           <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background px-6">
             <SidebarTrigger />
-            <h1 className="text-xl font-semibold">
-              {currentSection === "users" ? t('users.title') :
-                currentSection === "teams" ? t('teams.title') :
-                  currentSection === "permissions" ? t('permissions.title') :
-                    currentSection === "reminders" ? t('reminders.title') :
-                      currentSection === "invites" ? t('invites.title') :
-                        currentSection === "profile" ? t('profile.title') :
-                          currentSection === "company" ? t('company.title') :
-                            currentSection === "tasks" ? t('common.tasks') :
-                              currentSection === "projects" ? t('projects.title') :
-                                "Dashboard"}
-            </h1>
+            {selectedWorkgroupId ? (
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedWorkgroupId(null)}>
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <FolderKanban className="h-5 w-5 text-primary" />
+                <h1 className="text-xl font-semibold">{selectedWorkgroup?.name || "Workspace"}</h1>
+              </div>
+            ) : (
+              <h1 className="text-xl font-semibold">
+                {currentSection === "users" ? t('users.title') :
+                  currentSection === "teams" ? t('teams.title') :
+                    currentSection === "permissions" ? t('permissions.title') :
+                      currentSection === "reminders" ? t('reminders.title') :
+                        currentSection === "invites" ? t('invites.title') :
+                          currentSection === "profile" ? t('profile.title') :
+                            currentSection === "company" ? t('company.title') :
+                              currentSection === "tasks" ? t('common.tasks') :
+                                currentSection === "projects" ? t('projects.title') :
+                                  "Dashboard"}
+              </h1>
+            )}
             {currentUser && (
               <div className="ml-auto flex items-center gap-3">
                 {/* Language Selector */}
@@ -3096,20 +3171,20 @@ export default function Dashboard() {
       <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Send Team Invite</DialogTitle>
+            <DialogTitle>{t('invites.sendInvite')}</DialogTitle>
             <DialogDescription>
-              Invite a new member to join your team. They will be registered as a Collaborator.
+              {t('invites.sendInviteDesc')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="invite-workgroup">Workgroup</Label>
+              <Label htmlFor="dialog-invite-workgroup">{t('invites.workspace')}</Label>
               <Select
                 value={inviteWorkgroupId || ""}
                 onValueChange={(value) => setInviteWorkgroupId(value as Id<"workgroups">)}
               >
-                <SelectTrigger id="invite-workgroup">
-                  <SelectValue placeholder="Select a workgroup" />
+                <SelectTrigger id="dialog-invite-workgroup">
+                  <SelectValue placeholder={t('invites.selectWorkspace')} />
                 </SelectTrigger>
                 <SelectContent>
                   {dashboardOverview?.workgroups?.map((workgroup: any) => (
@@ -3121,31 +3196,51 @@ export default function Dashboard() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="invite-name">Name</Label>
+              <Label htmlFor="dialog-invite-name">{t('invites.fullName')}</Label>
               <Input
-                id="invite-name"
-                placeholder="Enter full name"
+                id="dialog-invite-name"
+                placeholder={t('invites.fullNamePlaceholder')}
                 value={inviteName}
                 onChange={(e) => setInviteName(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="invite-email">Email</Label>
+              <Label htmlFor="dialog-invite-email">{t('invites.email')}</Label>
               <Input
-                id="invite-email"
+                id="dialog-invite-email"
                 type="email"
-                placeholder="Enter email address"
+                placeholder={t('invites.emailPlaceholder')}
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="dialog-invite-role">{t('invites.role')}</Label>
+              <Select value={inviteRole} onValueChange={setInviteRole}>
+                <SelectTrigger id="dialog-invite-role">
+                  <SelectValue placeholder={t('invites.selectRole')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="COLLABORATOR">{t('roles.collaborator')}</SelectItem>
+                  <SelectItem value="MANAGER">{t('roles.manager')}</SelectItem>
+                  <SelectItem value="READER">{t('roles.reader')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsInviteDialogOpen(false)}>
-              Cancel
+              {t('invites.cancel')}
             </Button>
-            <Button onClick={handleSendInvite} disabled={isSendingInvite}>
-              {isSendingInvite ? "Sending..." : "Send Invite"}
+            <Button onClick={() => handleSendInvite()} disabled={isSendingInvite || !inviteEmail || !inviteName || !inviteWorkgroupId}>
+              {isSendingInvite ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {t('invites.sending')}
+                </>
+              ) : (
+                t('invites.sendInviteButton')
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

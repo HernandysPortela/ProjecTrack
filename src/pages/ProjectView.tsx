@@ -18,11 +18,12 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, ArrowLeft, Plus, CheckCircle2, Circle, Clock, AlertCircle, List, Calendar, LayoutGrid, GanttChart, Trash2, Edit, MoreVertical, ChevronRight, ChevronDown, Settings, Upload, Download, FileText, UserPlus, UserMinus, Ban, X, GripVertical, User, ArrowUpDown } from "lucide-react";
+import { Loader2, ArrowLeft, Plus, CheckCircle2, Circle, Clock, AlertCircle, List, Calendar, LayoutGrid, GanttChart, Trash2, Edit, MoreVertical, ChevronRight, ChevronDown, Settings, Upload, Download, FileText, UserPlus, UserMinus, Ban, X, GripVertical, User, ArrowUpDown, FolderInput, Rocket } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { Id } from "@convex/_generated/dataModel";
 import { TASK_STATUS, TASK_PRIORITY } from "@/utils/constants";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, Cell } from "recharts";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, useDroppable, pointerWithin, closestCenter } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, horizontalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { useSortable } from "@dnd-kit/sortable";
@@ -31,6 +32,7 @@ import { TaskDependencyManager } from "@/components/TaskDependencyManager";
 import { TaskDependencyIndicator } from "@/components/TaskDependencyIndicator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ProjectFilters, ProjectFiltersState } from "@/components/ProjectFilters";
+import { ExcelImport } from "@/components/ExcelImport";
 
 export default function ProjectView() {
   const { isLoading, isAuthenticated, user } = useAuth();
@@ -338,6 +340,21 @@ export default function ProjectView() {
   const [restrictToTeams, setRestrictToTeams] = useState(false);
   const [selectedTeamIds, setSelectedTeamIds] = useState<Id<"teams">[]>([]);
 
+  // Move task / Convert to project state
+  const [isMoveTaskDialogOpen, setIsMoveTaskDialogOpen] = useState(false);
+  const [taskToMove, setTaskToMove] = useState<Id<"tasks"> | null>(null);
+  const [moveTargetProjectId, setMoveTargetProjectId] = useState<string>("");
+  const [isConvertDialogOpen, setIsConvertDialogOpen] = useState(false);
+  const [taskToConvert, setTaskToConvert] = useState<Id<"tasks"> | null>(null);
+  const [convertProjectName, setConvertProjectName] = useState("");
+  const [convertProjectColor, setConvertProjectColor] = useState("#3b82f6");
+
+  // Projects in the same workgroup (for move task)
+  const workgroupProjects = useQuery(
+    api.projects.list,
+    workgroupId ? { workgroupId: workgroupId as Id<"workgroups"> } : "skip"
+  );
+
   const projectTags = useQuery(
     api.tags.list,
     projectId ? { projectId: projectId as Id<"projects"> } : "skip"
@@ -420,6 +437,8 @@ export default function ProjectView() {
   const deleteColumn = useMutation(api.kanban.deleteColumn);
   const reorderColumns = useMutation(api.kanban.reorderColumns);
   const reorderTask = useMutation(api.tasks.reorderTask);
+  const moveToProject = useMutation(api.tasks.moveToProject);
+  const convertToProject = useMutation(api.tasks.convertToProject);
   const createChecklistItem = useMutation(api.checklists.create);
   const toggleChecklistItem = useMutation(api.checklists.toggle);
   const deleteChecklistItem = useMutation(api.checklists.deleteItem);
@@ -1156,7 +1175,7 @@ export default function ProjectView() {
 
   const getTaskSubtasks = (taskId: Id<"tasks">, allTasks: typeof tasks): any[] => {
     if (!allTasks) return [];
-    return allTasks.filter(t => t.parentTaskId === taskId);
+    return allTasks.filter(t => t.parentTaskId === taskId).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -1444,7 +1463,7 @@ export default function ProjectView() {
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                   <Button
                     variant="outline"
                     size="sm"
@@ -1461,32 +1480,52 @@ export default function ProjectView() {
                     className="bg-gradient-to-r from-slate-50 to-slate-100/50 border-slate-200 text-slate-700 hover:from-slate-100 hover:to-slate-200/50 hover:border-slate-300 shadow-sm hover:shadow-md transition-all duration-200"
                   >
                     <Edit className="h-3 w-3 mr-1" />
-                    Editar
+                    {t('common.edit')}
                   </Button>
-                  {isProjectOwner && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setTaskToDelete(task._id);
-                        setIsDeleteDialogOpen(true);
-                      }}
-                      className="bg-gradient-to-r from-red-50 to-red-100/50 border-red-200 text-red-700 hover:from-red-100 hover:to-red-200/50 hover:border-red-300 shadow-sm hover:shadow-md transition-all duration-200"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  )}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="px-2">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuItem onClick={() => {
+                        setTaskToMove(task._id);
+                        setMoveTargetProjectId("");
+                        setIsMoveTaskDialogOpen(true);
+                      }}>
+                        <FolderInput className="h-4 w-4 mr-2" />
+                        {t('tasks.moveToProject')}
+                      </DropdownMenuItem>
+                      {!task.parentTaskId && (
+                        <DropdownMenuItem onClick={() => {
+                          setTaskToConvert(task._id);
+                          setConvertProjectName(task.title);
+                          setConvertProjectColor(project?.color || "#3b82f6");
+                          setIsConvertDialogOpen(true);
+                        }}>
+                          <Rocket className="h-4 w-4 mr-2" />
+                          {t('tasks.convertToProject')}
+                        </DropdownMenuItem>
+                      )}
+                      {isProjectOwner && (
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => {
+                            setTaskToDelete(task._id);
+                            setIsDeleteDialogOpen(true);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          {t('common.delete')}
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
             </CardHeader>
           </Card>
-          {isExpanded && hasSubtasks && (
-            <div className="ml-6">
-              {subtasks.filter((st: any) => tasks?.find((t: any) => t._id === st._id)).map(subtask => (
-                <SortableTaskItem key={subtask._id} task={subtask} level={level + 1} />
-              ))}
-            </div>
-          )}
         </div>
       </div>
     );
@@ -1604,21 +1643,48 @@ export default function ProjectView() {
                   className="bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
                 >
                   <Edit className="h-3 w-3 mr-1" />
-                  Editar
+                  {t('common.edit')}
                 </Button>
-                {isProjectOwner && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setTaskToDelete(task._id);
-                      setIsDeleteDialogOpen(true);
-                    }}
-                    className="bg-red-50 border-red-200 text-red-700 hover:bg-red-100 hover:border-red-300"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="px-2">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem onClick={() => {
+                      setTaskToMove(task._id);
+                      setMoveTargetProjectId("");
+                      setIsMoveTaskDialogOpen(true);
+                    }}>
+                      <FolderInput className="h-4 w-4 mr-2" />
+                      {t('tasks.moveToProject')}
+                    </DropdownMenuItem>
+                    {!task.parentTaskId && (
+                      <DropdownMenuItem onClick={() => {
+                        setTaskToConvert(task._id);
+                        setConvertProjectName(task.title);
+                        setConvertProjectColor(project?.color || "#3b82f6");
+                        setIsConvertDialogOpen(true);
+                      }}>
+                        <Rocket className="h-4 w-4 mr-2" />
+                        {t('tasks.convertToProject')}
+                      </DropdownMenuItem>
+                    )}
+                    {isProjectOwner && (
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => {
+                          setTaskToDelete(task._id);
+                          setIsDeleteDialogOpen(true);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        {t('common.delete')}
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           </CardHeader>
@@ -1642,44 +1708,80 @@ export default function ProjectView() {
     const taskId = active.id as Id<"tasks">;
     const overId = over.id as Id<"tasks">;
 
+    // Check that both tasks share the same parent (or are both root tasks)
+    const movedTask = tasks?.find(t => t._id === taskId);
+    const targetTask = tasks?.find(t => t._id === overId);
+    
+    if (!movedTask || !targetTask) return;
+    
+    // Only allow reordering among siblings (same parentTaskId)
+    const movedParent = movedTask.parentTaskId || null;
+    const targetParent = targetTask.parentTaskId || null;
+    
+    if (movedParent !== targetParent) {
+      return; // Don't allow reordering across different parents
+    }
+
     try {
       await reorderTask({
         id: taskId,
         targetId: overId,
         projectId: project._id,
-        sameStatusOnly: false, // Na lista, reordena todas as tarefas
+        sameStatusOnly: false,
       });
-      toast.success("Task reordered");
+      toast.success(movedParent ? "Subtarefa reordenada" : "Tarefa reordenada");
     } catch (error) {
-      toast.error("Failed to reorder task");
+      toast.error("Falha ao reordenar");
       console.error("Reorder error:", error);
     }
   };
 
-  const renderListView = () => (
-    <DndContext
-      onDragEnd={handleListDragEnd}
-      collisionDetection={closestCenter}
-    >
-      <SortableContext
-        items={parentTasks.map(t => t._id)}
-        strategy={verticalListSortingStrategy}
+  const renderListView = () => {
+    // Build a flat list of visible tasks (parents + expanded subtasks) for DnD
+    // dnd-kit requires all sortable items to be at the same DOM level
+    const flatVisibleTasks: { task: any; level: number }[] = [];
+    const collectVisible = (parentId: string | null, level: number) => {
+      const items = parentId 
+        ? (tasks || []).filter(t => t.parentTaskId === parentId).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+        : parentTasks;
+      items.forEach(t => {
+        flatVisibleTasks.push({ task: t, level });
+        // Only include subtasks if the parent is expanded
+        if (expandedTasks.has(t._id)) {
+          collectVisible(t._id, level + 1);
+        }
+      });
+    };
+    collectVisible(null, 0);
+
+    const allTaskIds = flatVisibleTasks.map(item => item.task._id);
+
+    return (
+      <DndContext
+        sensors={sensors}
+        onDragEnd={handleListDragEnd}
+        collisionDetection={closestCenter}
       >
-        <div className="space-y-4">
-          {parentTasks.map((task, index) => (
-            <motion.div
-              key={task._id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: index * 0.05 }}
-            >
-              <SortableTaskItem task={task} />
-            </motion.div>
-          ))}
-        </div>
-      </SortableContext>
-    </DndContext>
-  );
+        <SortableContext
+          items={allTaskIds}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="space-y-4">
+            {flatVisibleTasks.map((item, index) => (
+              <motion.div
+                key={item.task._id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.5) }}
+              >
+                <SortableTaskItem task={item.task} level={item.level} />
+              </motion.div>
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+    );
+  };
 
   const SubtaskCard = ({ subtask }: { subtask: any }) => {
     const {
@@ -3079,39 +3181,179 @@ export default function ProjectView() {
           </Card>
         )}
 
-        {/* Team Members - Project Members */}
-        {projectMembers && projectMembers.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Project Team Members</CardTitle>
-              <CardDescription>{projectMembers.length} members in this project</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {projectMembers.map((member: any) => {
-                  const memberUserId = member.user?._id || member.userId;
-                  const memberTasks = allTasks.filter(t => t.assigneeId === memberUserId);
-                  const memberCompletedTasks = memberTasks.filter(t => t.status === TASK_STATUS.DONE).length;
-                  
-                  return (
-                    <div key={memberUserId} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{member.user?.name || member.name || "Unknown"}</p>
-                        <p className="text-xs text-muted-foreground truncate">{member.user?.email || member.email || ""}</p>
-                      </div>
-                      <div className="text-right ml-2">
-                        <p className="text-sm font-bold">{memberTasks.length}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {memberCompletedTasks} done
-                        </p>
-                      </div>
+        {/* Team Members - Derived from task assignees + project members */}
+        {(() => {
+          // Build unique members from task assignees + project members
+          const memberMap = new Map<string, { id: string; name: string; email: string }>();
+          
+          // Add all task assignees
+          allTasks.forEach((task: any) => {
+            if (task.assigneeId && !memberMap.has(task.assigneeId)) {
+              const userInfo = allUsers?.find((u: any) => u._id === task.assigneeId);
+              memberMap.set(task.assigneeId, {
+                id: task.assigneeId,
+                name: userInfo?.name || t('tasks.unknown'),
+                email: userInfo?.email || '',
+              });
+            }
+          });
+          
+          // Also add project members that might not have tasks
+          if (projectMembers) {
+            projectMembers.forEach((member: any) => {
+              const memberId = member.user?._id || member.userId;
+              if (memberId && !memberMap.has(memberId)) {
+                memberMap.set(memberId, {
+                  id: memberId,
+                  name: member.user?.name || member.name || t('tasks.unknown'),
+                  email: member.user?.email || member.email || '',
+                });
+              }
+            });
+          }
+          
+          const uniqueMembers = Array.from(memberMap.values());
+          if (uniqueMembers.length === 0) return null;
+          
+          const now = Date.now();
+          
+          // Build chart data per member
+          const chartData = uniqueMembers.map(member => {
+            const memberTasks = allTasks.filter((task: any) => task.assigneeId === member.id);
+            const completedTasks = memberTasks.filter((task: any) => task.status === TASK_STATUS.DONE).length;
+            const overdueTasks = memberTasks.filter((task: any) => 
+              task.status !== TASK_STATUS.DONE && task.dueDate && task.dueDate < now
+            ).length;
+            const onTimeTasks = memberTasks.filter((task: any) => 
+              task.status !== TASK_STATUS.DONE && (!task.dueDate || task.dueDate >= now)
+            ).length;
+            
+            return {
+              name: member.name.split(' ')[0], // First name for chart
+              fullName: member.name,
+              email: member.email,
+              total: memberTasks.length,
+              [t('tasks.completed')]: completedTasks,
+              [t('tasks.onTime')]: onTimeTasks,
+              [t('tasks.overdueTasks')]: overdueTasks,
+              completedCount: completedTasks,
+              onTimeCount: onTimeTasks,
+              overdueCount: overdueTasks,
+            };
+          }).sort((a, b) => b.total - a.total);
+          
+          return (
+            <>
+              {/* Team Members Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t('tasks.projectTeamMembers')}</CardTitle>
+                  <CardDescription>
+                    {t('tasks.membersInProject').replace('{count}', String(uniqueMembers.length))}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {chartData.map((member) => {
+                      const hasOverdue = member.overdueCount > 0;
+                      
+                      return (
+                        <div key={member.fullName} className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${
+                          hasOverdue ? 'border-red-200 bg-red-50/50 dark:border-red-900/30 dark:bg-red-950/20' : 'hover:bg-muted/30'
+                        }`}>
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <Avatar className="h-8 w-8">
+                              <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                                {member.fullName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{member.fullName}</p>
+                              <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 ml-2">
+                            <div className="text-right">
+                              <p className="text-sm font-bold">{member.total} {t('tasks.tasksAssigned')}</p>
+                              <div className="flex items-center gap-2 justify-end text-xs">
+                                <span className="text-green-600 dark:text-green-400">
+                                  {member.completedCount} {t('tasks.completed')}
+                                </span>
+                                {hasOverdue && (
+                                  <span className="text-red-600 dark:text-red-400 font-medium">
+                                    {member.overdueCount} {t('tasks.overdueTasks').toLowerCase()}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* Chart: Task Status by Member */}
+              {chartData.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{t('tasks.taskStatusByMember')}</CardTitle>
+                    <CardDescription>{t('tasks.taskStatusByMemberDesc')}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[350px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={chartData}
+                          margin={{ top: 10, right: 30, left: 0, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                          <XAxis 
+                            dataKey="name" 
+                            tick={{ fontSize: 12 }}
+                            interval={0}
+                            angle={chartData.length > 6 ? -30 : 0}
+                            textAnchor={chartData.length > 6 ? "end" : "middle"}
+                            height={chartData.length > 6 ? 60 : 30}
+                          />
+                          <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+                          <RechartsTooltip 
+                            contentStyle={{ 
+                              borderRadius: '8px', 
+                              border: '1px solid hsl(var(--border))',
+                              backgroundColor: 'hsl(var(--background))',
+                              color: 'hsl(var(--foreground))'
+                            }}
+                          />
+                          <Legend />
+                          <Bar 
+                            dataKey={t('tasks.completed')} 
+                            stackId="a" 
+                            fill="#22c55e" 
+                            radius={[0, 0, 0, 0]} 
+                          />
+                          <Bar 
+                            dataKey={t('tasks.onTime')} 
+                            stackId="a" 
+                            fill="#3b82f6" 
+                            radius={[0, 0, 0, 0]} 
+                          />
+                          <Bar 
+                            dataKey={t('tasks.overdueTasks')} 
+                            stackId="a" 
+                            fill="#ef4444" 
+                            radius={[4, 4, 0, 0]} 
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
                     </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          );
+        })()}
 
         {/* Task Cost Summary */}
         {allTasks && allTasks.length > 0 && (() => {
@@ -3408,6 +3650,17 @@ export default function ProjectView() {
               <Plus className="h-4 w-4 mr-2" />
               {t('tasks.newTask')}
             </Button>
+
+            <ExcelImport 
+              projectId={projectId as Id<"projects">}
+              onSuccess={() => {
+                toast.success("Tarefas importadas com sucesso!");
+                // Pequeno delay para garantir que o Convex processou tudo
+                setTimeout(() => {
+                  window.location.reload();
+                }, 500);
+              }}
+            />
 
             <Button
               variant="outline"
@@ -3933,6 +4186,139 @@ export default function ProjectView() {
             <Button variant="destructive" onClick={confirmDeleteProject}>
               Delete Project
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Move Task to Another Project Dialog */}
+      <Dialog open={isMoveTaskDialogOpen} onOpenChange={(open) => {
+        setIsMoveTaskDialogOpen(open);
+        if (!open) { setTaskToMove(null); setMoveTargetProjectId(""); }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderInput className="h-5 w-5 text-primary" />
+              {t('tasks.moveToProject')}
+            </DialogTitle>
+            <DialogDescription>
+              {t('tasks.moveToProjectDesc')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>{t('tasks.targetProject')}</Label>
+              <Select value={moveTargetProjectId} onValueChange={setMoveTargetProjectId}>
+                <SelectTrigger>
+                  <SelectValue placeholder={t('tasks.selectProject')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {workgroupProjects
+                    ?.filter((p: any) => p._id !== projectId)
+                    .map((p: any) => (
+                      <SelectItem key={p._id} value={p._id}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: p.color }} />
+                          {p.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setIsMoveTaskDialogOpen(false)}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                disabled={!moveTargetProjectId}
+                onClick={async () => {
+                  if (!taskToMove || !moveTargetProjectId) return;
+                  try {
+                    await moveToProject({
+                      taskId: taskToMove,
+                      targetProjectId: moveTargetProjectId as Id<"projects">,
+                    });
+                    toast.success(t('tasks.taskMoved'));
+                    setIsMoveTaskDialogOpen(false);
+                    setTaskToMove(null);
+                    setMoveTargetProjectId("");
+                  } catch (error: any) {
+                    toast.error(error?.message || t('tasks.moveError'));
+                  }
+                }}
+              >
+                <FolderInput className="h-4 w-4 mr-2" />
+                {t('tasks.move')}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Convert Task to Project Dialog */}
+      <Dialog open={isConvertDialogOpen} onOpenChange={(open) => {
+        setIsConvertDialogOpen(open);
+        if (!open) { setTaskToConvert(null); setConvertProjectName(""); setConvertProjectColor("#3b82f6"); }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Rocket className="h-5 w-5 text-primary" />
+              {t('tasks.convertToProject')}
+            </DialogTitle>
+            <DialogDescription>
+              {t('tasks.convertToProjectDesc')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>{t('tasks.projectName')}</Label>
+              <Input
+                value={convertProjectName}
+                onChange={(e) => setConvertProjectName(e.target.value)}
+                placeholder={t('tasks.projectName')}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>{t('tasks.projectColor')}</Label>
+              <div className="flex items-center gap-3">
+                <Input
+                  type="color"
+                  value={convertProjectColor}
+                  onChange={(e) => setConvertProjectColor(e.target.value)}
+                  className="w-14 h-10 p-1 cursor-pointer"
+                />
+                <div className="w-8 h-8 rounded-full border-2 border-border" style={{ backgroundColor: convertProjectColor }} />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setIsConvertDialogOpen(false)}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                disabled={!convertProjectName.trim()}
+                onClick={async () => {
+                  if (!taskToConvert || !convertProjectName.trim()) return;
+                  try {
+                    const newProjectId = await convertToProject({
+                      taskId: taskToConvert,
+                      projectName: convertProjectName,
+                      projectColor: convertProjectColor,
+                    });
+                    toast.success(t('tasks.taskConverted'));
+                    setIsConvertDialogOpen(false);
+                    setTaskToConvert(null);
+                    navigate(`/project/${newProjectId}`);
+                  } catch (error: any) {
+                    toast.error(error?.message || t('tasks.convertError'));
+                  }
+                }}
+              >
+                <Rocket className="h-4 w-4 mr-2" />
+                {t('tasks.convert')}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

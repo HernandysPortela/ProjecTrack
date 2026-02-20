@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation, useConvex } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { AlertCircle, Loader2, Lock, Mail, User, CheckCircle2 } from "lucide-react";
+import { AlertCircle, Loader2, Lock, Mail, User, CheckCircle2, Building2, Shield, Clock } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -64,10 +64,15 @@ function InviteAccept() {
         toast.error("Este convite já foi aceito");
       } else if (invite.status === "cancelled") {
         toast.error("Este convite foi cancelado");
+      } else if (invite.status === "expired" || invite.isExpired) {
+        toast.error("Este convite expirou. Solicite um novo convite ao administrador.");
       } else {
         toast.error("Este convite não está mais disponível");
       }
-      setTimeout(() => navigate("/auth", { replace: true }), 2000);
+      setTimeout(() => navigate("/auth", { replace: true }), 3000);
+    } else if (invite && invite.isExpired) {
+      toast.error("Este convite expirou. Solicite um novo convite ao administrador.");
+      setTimeout(() => navigate("/auth", { replace: true }), 3000);
     }
   }, [invite, navigate, tokenValidated]);
 
@@ -279,6 +284,36 @@ function InviteAccept() {
 
             <form onSubmit={handleSubmit}>
               <CardContent className="space-y-4 pt-4">
+                {/* Invitation details card */}
+                <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Building2 className="h-4 w-4 text-primary" />
+                    <span className="text-muted-foreground">Workspace:</span>
+                    <span className="font-semibold">{invite.workgroupName}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Shield className="h-4 w-4 text-primary" />
+                    <span className="text-muted-foreground">Sua função:</span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                      {invite.roleName || invite.role}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <User className="h-4 w-4 text-primary" />
+                    <span className="text-muted-foreground">Convidado por:</span>
+                    <span className="font-medium">{invite.inviterName}</span>
+                  </div>
+                  {invite.expiresAt && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Clock className="h-4 w-4 text-amber-500" />
+                      <span className="text-muted-foreground">Válido até:</span>
+                      <span className="font-medium text-amber-600 dark:text-amber-400">
+                        {new Date(invite.expiresAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="name">Nome Completo</Label>
                   <div className="relative">

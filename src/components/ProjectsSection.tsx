@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useNavigate } from "react-router";
 import { api } from "@convex/_generated/api";
@@ -12,9 +12,10 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { TrendingUpIcon, Check, X, Edit2, ExternalLink, Download, Search, Filter, FolderKanban } from "lucide-react";
+import { TrendingUpIcon, Check, X, Edit2, ExternalLink, Download, Search, Filter, FolderKanban, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 
 export default function ProjectsSection() {
   const { t } = useLanguage();
@@ -24,6 +25,7 @@ export default function ProjectsSection() {
   const updatePriority = useMutation((api as any).projects.updatePriority);
   const updateProject = useMutation((api as any).projects.updateProject);
 
+
   const [editingPriority, setEditingPriority] = useState<Id<"projects"> | null>(null);
   const [priorityValue, setPriorityValue] = useState<number>(1);
   const [editingDescription, setEditingDescription] = useState<Id<"projects"> | null>(null);
@@ -32,10 +34,13 @@ export default function ProjectsSection() {
   const [quarterValue, setQuarterValue] = useState<string>("");
   const [editingApproval, setEditingApproval] = useState<Id<"projects"> | null>(null);
   const [approvalValue, setApprovalValue] = useState<string>("pending");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(20);
+
 
   // Filter states
   const [searchName, setSearchName] = useState<string>("");
-  const [searchOwner, setSearchOwner] = useState<string>("");
+  const [searchOwner, setSearchOwner] =useState<string>("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
   if (!user) {
@@ -137,6 +142,12 @@ export default function ProjectsSection() {
         })
     : [];
 
+  const totalPages = Math.max(1, Math.ceil(filteredAndSortedProjects.length / rowsPerPage));
+  const paginatedProjects = useMemo(() => {
+    const start = (currentPage - 1) * rowsPerPage;
+    return filteredAndSortedProjects.slice(start, start + rowsPerPage);
+  }, [filteredAndSortedProjects, currentPage, rowsPerPage]);
+
   const handleExportToExcel = () => {
     if (!filteredAndSortedProjects || filteredAndSortedProjects.length === 0) {
       toast.error(t("projects.noDataToExport"));
@@ -196,15 +207,17 @@ export default function ProjectsSection() {
               <p className="text-muted-foreground text-sm mt-1">Gerencie e acompanhe todos os seus projetos</p>
             </div>
           </div>
-          <Button
-            onClick={handleExportToExcel}
-            variant="outline" 
-            size="sm"
-            className="flex items-center gap-2 hover:bg-primary/10 hover:text-primary hover:border-primary/40 transition-all duration-200"
-          >
-            <Download className="h-4 w-4" />
-            {t("projects.exportToExcel")}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handleExportToExcel}
+              variant="outline" 
+              size="sm"
+              className="flex items-center gap-2 hover:bg-primary/10 hover:text-primary hover:border-primary/40 transition-all duration-200"
+            >
+              <Download className="h-4 w-4" />
+              {t("projects.exportToExcel")}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -334,7 +347,8 @@ export default function ProjectsSection() {
               <p className="text-sm text-muted-foreground">Tente ajustar os filtros ou criar um novo projeto</p>
             </div>
           ) : (
-            <div className="rounded-lg border border-border/50 overflow-hidden shadow-sm">
+            <div className="rounded-lg border border-border/50 shadow-sm flex flex-col">
+              <div className="overflow-auto max-h-[70vh]">
               <Table>
                 <TableHeader className="bg-gradient-to-r from-muted/50 to-muted/30">
                   <TableRow className="hover:bg-transparent border-b border-border/50">
@@ -351,7 +365,7 @@ export default function ProjectsSection() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAndSortedProjects.map((project: any) => {
+                  {paginatedProjects.map((project: any) => {
                     const ownerName = getOwnerName(project.ownerId);
                     const isEditing = editingPriority === project._id;
 
@@ -623,6 +637,41 @@ export default function ProjectsSection() {
                   })}
                 </TableBody>
               </Table>
+              </div>
+
+              {/* Pagination */}
+              <div className="flex items-center justify-between px-4 py-3 border-t border-border/50 bg-muted/20">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Linhas por página:</span>
+                  <Select value={String(rowsPerPage)} onValueChange={(v) => { setRowsPerPage(Number(v)); setCurrentPage(1); }}>
+                    <SelectTrigger className="h-8 w-[70px] text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <span>{(currentPage - 1) * rowsPerPage + 1}-{Math.min(currentPage * rowsPerPage, filteredAndSortedProjects.length)} de {filteredAndSortedProjects.length}</span>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={currentPage === 1} onClick={() => setCurrentPage(1)}>
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="px-2 font-medium">{currentPage} / {totalPages}</span>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={currentPage === totalPages} onClick={() => setCurrentPage(totalPages)}>
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             </div>
           )}
         </CardContent>

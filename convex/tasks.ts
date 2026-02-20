@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { internal, api } from "./_generated/api";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import {
   taskPriorityValidator,
   taskStatusValidator,
@@ -330,15 +331,26 @@ export const reorderTask = mutation({
       throw new Error("Task not found");
     }
 
-    // Get all parent tasks in the project (or same status if specified)
+    // Get all tasks in the project
     let query = ctx.db
       .query("tasks")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId));
 
     const allTasks = await query.collect();
 
-    // Filter parent tasks only and optionally by status
-    let allTasksToReorder = allTasks.filter(t => !t.parentTaskId);
+    // Determine if we're reordering subtasks or parent tasks
+    // Both moved and target must share the same parentTaskId (or both be root)
+    const parentId = movedTask.parentTaskId || null;
+    
+    let allTasksToReorder: Doc<"tasks">[];
+    
+    if (parentId) {
+      // Reordering subtasks: filter siblings with the same parent
+      allTasksToReorder = allTasks.filter(t => t.parentTaskId === parentId);
+    } else {
+      // Reordering parent (root) tasks
+      allTasksToReorder = allTasks.filter(t => !t.parentTaskId);
+    }
 
     if (args.sameStatusOnly) {
       allTasksToReorder = allTasksToReorder.filter(t => t.status === targetTask.status);
@@ -399,6 +411,214 @@ export const reparentSubtask = mutation({
     await ctx.db.patch(args.id, {
       parentTaskId: args.parentTaskId === null ? undefined : args.parentTaskId,
     });
+  },
+});
+
+// Move a task (and its subtasks) to another project
+export const moveToProject = mutation({
+  args: {
+    taskId: v.id("tasks"),
+    targetProjectId: v.id("projects"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthorized");
+
+    const task = await ctx.db.get(args.taskId);
+    if (!task) throw new Error("Task not found");
+
+    const targetProject = await ctx.db.get(args.targetProjectId);
+    if (!targetProject) throw new Error("Target project not found");
+
+    if (task.projectId === args.targetProjectId) {
+      throw new Error("Task is already in this project");
+    }
+
+    const sourceProjectId = task.projectId;
+
+    // Move main task: set new projectId, remove parentTaskId (becomes root in new project)
+    const lastTask = await ctx.db
+      .query("tasks")
+      .withIndex("by_project", (q) => q.eq("projectId", args.targetProjectId))
+      .order("desc")
+      .first();
+    const newOrder = lastTask ? (lastTask.order || 0) + 1 : 0;
+
+    await ctx.db.patch(args.taskId, {
+      projectId: args.targetProjectId,
+      parentTaskId: undefined,
+      order: newOrder,
+    });
+
+    // Recursively move all subtasks to the new project
+    const moveSubtasks = async (parentId: Id<"tasks">) => {
+      const subtasks = await ctx.db
+        .query("tasks")
+        .withIndex("by_parent", (q: any) => q.eq("parentTaskId", parentId))
+        .collect();
+      for (const subtask of subtasks) {
+        await ctx.db.patch(subtask._id, {
+          projectId: args.targetProjectId,
+        });
+        await moveSubtasks(subtask._id);
+      }
+    };
+    await moveSubtasks(args.taskId);
+
+    // Clean up dependencies that reference tasks in the old project
+    // (cross-project dependencies are not supported)
+    const deps = await ctx.db
+      .query("taskDependencies")
+      .withIndex("by_task", (q: any) => q.eq("taskId", args.taskId))
+      .collect();
+    for (const dep of deps) {
+      const depTask = await ctx.db.get(dep.dependsOnTaskId);
+      if (depTask && depTask.projectId !== args.targetProjectId) {
+        await ctx.db.delete(dep._id);
+      }
+    }
+
+    // Update project dates for both projects
+    await ctx.scheduler.runAfter(0, internal.projects.updateProjectDatesFromTasks, {
+      projectId: sourceProjectId,
+    });
+    await ctx.scheduler.runAfter(0, internal.projects.updateProjectDatesFromTasks, {
+      projectId: args.targetProjectId,
+    });
+
+    return args.taskId;
+  },
+});
+
+// Convert a task into a new project (with its subtasks becoming tasks)
+export const convertToProject = mutation({
+  args: {
+    taskId: v.id("tasks"),
+    projectName: v.optional(v.string()),
+    projectColor: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Unauthorized");
+
+    const currentUser = await ctx.db.get(userId);
+    if (!currentUser) throw new Error("User not found");
+
+    const task = await ctx.db.get(args.taskId);
+    if (!task) throw new Error("Task not found");
+
+    const sourceProject = await ctx.db.get(task.projectId);
+    if (!sourceProject) throw new Error("Source project not found");
+
+    // Create new project from the task
+    const newProjectId = await ctx.db.insert("projects", {
+      workgroupId: sourceProject.workgroupId,
+      folderId: sourceProject.folderId,
+      ownerId: currentUser._id,
+      name: args.projectName || task.title,
+      description: task.description,
+      startDate: task.startDate,
+      endDate: task.dueDate,
+      color: args.projectColor || sourceProject.color,
+      status: "in_progress",
+    });
+
+    // Add current user as project owner member
+    await ctx.db.insert("project_members", {
+      projectId: newProjectId,
+      userId: currentUser._id,
+      role: "owner",
+    });
+
+    // Get all subtasks of this task
+    const subtasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_parent", (q: any) => q.eq("parentTaskId", args.taskId))
+      .collect();
+
+    // Move subtasks to the new project as root tasks
+    for (let i = 0; i < subtasks.length; i++) {
+      await ctx.db.patch(subtasks[i]._id, {
+        projectId: newProjectId,
+        parentTaskId: undefined,
+        order: i,
+      });
+
+      // Recursively update nested subtasks' projectId
+      const updateChildren = async (parentId: Id<"tasks">) => {
+        const children = await ctx.db
+          .query("tasks")
+          .withIndex("by_parent", (q: any) => q.eq("parentTaskId", parentId))
+          .collect();
+        for (const child of children) {
+          await ctx.db.patch(child._id, {
+            projectId: newProjectId,
+          });
+          await updateChildren(child._id);
+        }
+      };
+      await updateChildren(subtasks[i]._id);
+    }
+
+    // Delete the original task (it's now a project)
+    // First clean up its dependencies, tags, comments, etc.
+    const taskDeps = await ctx.db
+      .query("taskDependencies")
+      .withIndex("by_task", (q: any) => q.eq("taskId", args.taskId))
+      .collect();
+    for (const dep of taskDeps) {
+      await ctx.db.delete(dep._id);
+    }
+    const taskDepsReverse = await ctx.db
+      .query("taskDependencies")
+      .withIndex("by_depends_on", (q: any) => q.eq("dependsOnTaskId", args.taskId))
+      .collect();
+    for (const dep of taskDepsReverse) {
+      await ctx.db.delete(dep._id);
+    }
+    const taskTags = await ctx.db
+      .query("task_tags")
+      .withIndex("by_task", (q: any) => q.eq("taskId", args.taskId))
+      .collect();
+    for (const tt of taskTags) {
+      await ctx.db.delete(tt._id);
+    }
+    const taskComments = await ctx.db
+      .query("comments")
+      .withIndex("by_task", (q: any) => q.eq("taskId", args.taskId))
+      .collect();
+    for (const comment of taskComments) {
+      await ctx.db.delete(comment._id);
+    }
+    const taskAttachments = await ctx.db
+      .query("attachments")
+      .withIndex("by_task", (q: any) => q.eq("taskId", args.taskId))
+      .collect();
+    for (const att of taskAttachments) {
+      await ctx.db.delete(att._id);
+    }
+    const taskChecklist = await ctx.db
+      .query("checklist_items")
+      .withIndex("by_task", (q: any) => q.eq("taskId", args.taskId))
+      .collect();
+    for (const item of taskChecklist) {
+      await ctx.db.delete(item._id);
+    }
+
+    // Delete the original task
+    await ctx.db.delete(args.taskId);
+
+    // Update source project dates
+    await ctx.scheduler.runAfter(0, internal.projects.updateProjectDatesFromTasks, {
+      projectId: task.projectId,
+    });
+
+    // Update new project dates
+    await ctx.scheduler.runAfter(0, internal.projects.updateProjectDatesFromTasks, {
+      projectId: newProjectId,
+    });
+
+    return newProjectId;
   },
 });
 

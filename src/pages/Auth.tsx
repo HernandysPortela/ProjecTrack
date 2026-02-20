@@ -20,7 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { useConvex, useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { AlertCircle, ArrowRight, Loader2, Mail, User, Lock, CheckCircle2 } from "lucide-react";
+import { AlertCircle, ArrowRight, Loader2, Mail, User, Lock, CheckCircle2, Building2, Shield, Clock } from "lucide-react";
 import { Suspense, useEffect, useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -119,9 +119,6 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
   const isMounted = useRef(true);
   const notifyPasswordReset = useMutation(api.users.notifyPasswordResetSuccess);
   const acceptInvite = useMutation(api.invites.accept);
-  const getInvite = useQuery(api.invites.getByToken, {
-    token: new URLSearchParams(window.location.search).get("token") || ""
-  });
 
   // Check if invite token is valid
   const inviteData = useQuery(
@@ -132,15 +129,28 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
   // Effect to handle invite token on page load
   useEffect(() => {
     if (inviteToken && inviteData) {
+      if (inviteData.isExpired || inviteData.status === "expired") {
+        toast.error("Este convite expirou. Solicite um novo convite ao administrador.");
+        return;
+      }
+      if (inviteData.status === "accepted") {
+        toast.error("Este convite já foi aceito.");
+        return;
+      }
+      if (inviteData.status === "cancelled") {
+        toast.error("Este convite foi cancelado.");
+        return;
+      }
       if (inviteData.status === "pending") {
         // Pre-fill the registration form with invite data
         setPasswordFlow("signUp");
         setPasswordEmail(inviteData.email);
         setName(inviteData.name);
-        toast.info(t('auth.completeRegistrationForInvite'));
-      } else {
-        toast.error(t('auth.invalidInvite'));
+        setError(null);
+        toast.info("Complete seu cadastro para aceitar o convite!");
       }
+    } else if (inviteToken && inviteData === null) {
+      toast.error("Convite não encontrado ou inválido.");
     }
   }, [inviteToken, inviteData]);
 
@@ -693,22 +703,69 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                     </div>
                   </div>
                   <CardTitle className="text-2xl font-bold tracking-tight">
-                    {passwordFlow === "signIn" ? t('auth.welcomeBack') : t('auth.createAccount')}
+                    {inviteToken && inviteData && inviteData.status === "pending"
+                      ? "Complete seu Cadastro"
+                      : passwordFlow === "signIn" ? t('auth.welcomeBack') : t('auth.createAccount')}
                   </CardTitle>
                   <CardDescription className="text-base">
-                    {passwordFlow === "signIn"
-                      ? t('auth.signInDesc')
-                      : t('auth.signUpDesc')}
+                    {inviteToken && inviteData && inviteData.status === "pending"
+                      ? "Você foi convidado! Crie sua senha para acessar o sistema."
+                      : passwordFlow === "signIn"
+                        ? t('auth.signInDesc')
+                        : t('auth.signUpDesc')}
                   </CardDescription>
                 </CardHeader>
 
+                {/* Invite details card */}
+                {inviteToken && inviteData && inviteData.status === "pending" && !inviteData.isExpired && (
+                  <div className="px-6 pb-3">
+                    <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Building2 className="h-4 w-4 text-primary flex-shrink-0" />
+                        <span className="text-muted-foreground">Workspace:</span>
+                        <span className="font-semibold truncate">{inviteData.workgroupName}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <Shield className="h-4 w-4 text-primary flex-shrink-0" />
+                        <span className="text-muted-foreground">Função:</span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                          {inviteData.roleName || inviteData.role}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <User className="h-4 w-4 text-primary flex-shrink-0" />
+                        <span className="text-muted-foreground">Convidado por:</span>
+                        <span className="font-medium truncate">{inviteData.inviterName}</span>
+                      </div>
+                      {inviteData.expiresAt && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Clock className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                          <span className="text-muted-foreground">Válido até:</span>
+                          <span className="font-medium text-amber-600 dark:text-amber-400">
+                            {new Date(inviteData.expiresAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div className="px-6 pb-2">
-                  <Tabs value={passwordFlow} onValueChange={(v) => setPasswordFlow(v as "signIn" | "signUp")} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 h-10 p-1 bg-muted/50">
-                      <TabsTrigger value="signIn" className="text-xs font-medium transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm">{t('auth.login')}</TabsTrigger>
-                      <TabsTrigger value="signUp" className="text-xs font-medium transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm">{t('auth.signUp')}</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
+                  {/* Hide tabs when in invite mode - user must sign up */}
+                  {inviteToken && inviteData && inviteData.status === "pending" ? (
+                    <div className="text-center py-1">
+                      <p className="text-xs text-muted-foreground">Crie sua senha abaixo para completar o cadastro</p>
+                    </div>
+                  ) : (
+                    <Tabs value={passwordFlow} onValueChange={(v) => {
+                      setPasswordFlow(v as "signIn" | "signUp");
+                    }} className="w-full">
+                      <TabsList className="grid w-full grid-cols-2 h-10 p-1 bg-muted/50">
+                        <TabsTrigger value="signIn" className="text-xs font-medium transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm">{t('auth.login')}</TabsTrigger>
+                        <TabsTrigger value="signUp" className="text-xs font-medium transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm">{t('auth.signUp')}</TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  )}
                 </div>
 
                 <form onSubmit={handlePasswordSubmit}>
@@ -725,10 +782,10 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                             name="name"
                             type="text"
                             placeholder="John Doe"
-                            className="pl-9 h-10"
+                            className={`pl-9 h-10 ${inviteToken && inviteData ? 'bg-muted/50' : ''}`}
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            disabled={isLoading}
+                            disabled={isLoading || !!(inviteToken && inviteData && inviteData.status === "pending")}
                             required
                             autoComplete="name"
                           />
@@ -745,10 +802,10 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                           name="email"
                           type="email"
                           placeholder="name@example.com"
-                          className="pl-9 h-10"
+                          className={`pl-9 h-10 ${inviteToken && inviteData ? 'bg-muted/50' : ''}`}
                           value={passwordEmail}
                           onChange={(e) => setPasswordEmail(e.target.value)}
-                          disabled={isLoading}
+                          disabled={isLoading || !!(inviteToken && inviteData && inviteData.status === "pending")}
                           required
                         />
                       </div>

@@ -404,6 +404,102 @@ export const remove = mutation({
        }
     }
 
+    // Delete all tasks in the project (CASCADE DELETE)
+    console.log(`🗑️ Deleting project "${project.name}" and all related data...`);
+    
+    const tasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_project", (q) => q.eq("projectId", args.id))
+      .collect();
+
+    console.log(`  📋 Found ${tasks.length} tasks to delete`);
+
+    for (const task of tasks) {
+      // Delete task dependencies (taskDependencies table)
+      const taskDependencies = await ctx.db
+        .query("taskDependencies")
+        .withIndex("by_task", (q) => q.eq("taskId", task._id))
+        .collect();
+      for (const dep of taskDependencies) {
+        await ctx.db.delete(dep._id);
+      }
+
+      const blockingDependencies = await ctx.db
+        .query("taskDependencies")
+        .withIndex("by_depends_on", (q) => q.eq("dependsOnTaskId", task._id))
+        .collect();
+      for (const dep of blockingDependencies) {
+        await ctx.db.delete(dep._id);
+      }
+
+      // Delete task permissions
+      const taskPermissions = await ctx.db
+        .query("task_permissions")
+        .withIndex("by_task", (q) => q.eq("taskId", task._id))
+        .collect();
+      for (const permission of taskPermissions) {
+        await ctx.db.delete(permission._id);
+      }
+
+      // Delete task attachments
+      const attachments = await ctx.db
+        .query("attachments")
+        .withIndex("by_task", (q) => q.eq("taskId", task._id))
+        .collect();
+      for (const attachment of attachments) {
+        await ctx.db.delete(attachment._id);
+      }
+
+      // Delete task comments
+      const comments = await ctx.db
+        .query("comments")
+        .withIndex("by_task", (q) => q.eq("taskId", task._id))
+        .collect();
+      for (const comment of comments) {
+        await ctx.db.delete(comment._id);
+      }
+
+      // Delete task tags (task_tags junction table)
+      const taskTags = await ctx.db
+        .query("task_tags")
+        .withIndex("by_task", (q) => q.eq("taskId", task._id))
+        .collect();
+      for (const tag of taskTags) {
+        await ctx.db.delete(tag._id);
+      }
+
+      // Delete task checklists
+      const checklists = await ctx.db
+        .query("checklist_items")
+        .withIndex("by_task", (q) => q.eq("taskId", task._id))
+        .collect();
+      for (const item of checklists) {
+        await ctx.db.delete(item._id);
+      }
+
+      // Delete the task itself
+      await ctx.db.delete(task._id);
+    }
+
+    // Delete project-level kanban columns
+    const kanbanColumns = await ctx.db
+      .query("kanban_columns")
+      .withIndex("by_project", (q) => q.eq("projectId", args.id))
+      .collect();
+    for (const column of kanbanColumns) {
+      await ctx.db.delete(column._id);
+    }
+
+    // Delete project tags (the tags themselves, not task_tags)
+    const projectTags = await ctx.db
+      .query("tags")
+      .withIndex("by_project", (q) => q.eq("projectId", args.id))
+      .collect();
+    for (const tag of projectTags) {
+      await ctx.db.delete(tag._id);
+    }
+
+    // Delete project members
     const members = await ctx.db
       .query("project_members")
       .withIndex("by_project", (q) => q.eq("projectId", args.id))
@@ -413,7 +509,12 @@ export const remove = mutation({
       await ctx.db.delete(member._id);
     }
 
+    console.log(`  ✅ All related data deleted successfully`);
+
+    // Finally, delete the project itself
     await ctx.db.delete(args.id);
+    
+    console.log(`🎉 Project "${project.name}" deleted successfully`);
   },
 });
 

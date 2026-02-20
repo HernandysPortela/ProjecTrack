@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CheckCircle2, Circle, Clock, AlertCircle, MoreVertical, ChevronRight, ChevronDown, Trash2, Edit } from "lucide-react";
-import { Id } from "@/convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import { TaskDependencyIndicator } from "@/components/TaskDependencyIndicator";
 
 interface TaskCardProps {

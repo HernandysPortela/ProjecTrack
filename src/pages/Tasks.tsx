@@ -49,28 +49,28 @@ export default function TasksPage(props: Props) {
   } = props;
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-4 sm:space-y-6 p-3 sm:p-6">
       {/* Cabeçalho moderno com gradiente sutil */}
-      <div className="flex items-start justify-between bg-gradient-to-br from-background via-background to-primary/5 rounded-xl p-6 border border-border/50 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-primary/10 rounded-lg">
-            <CheckSquare className="h-8 w-8 text-primary" />
+      <div className="flex flex-col sm:flex-row items-start sm:justify-between gap-3 bg-gradient-to-br from-background via-background to-primary/5 rounded-xl p-4 sm:p-6 border border-border/50 shadow-sm">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="p-2 sm:p-3 bg-primary/10 rounded-lg">
+            <CheckSquare className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
           </div>
           <div>
-            <h2 className="text-4xl font-bold tracking-tight mb-1 bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+            <h2 className="text-2xl sm:text-4xl font-bold tracking-tight mb-1 bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
               {t('tasks.myTasks')}
             </h2>
-            <p className="text-muted-foreground text-base">{t('tasks.projectTasksDesc')}</p>
+            <p className="text-muted-foreground text-sm sm:text-base">{t('tasks.projectTasksDesc')}</p>
           </div>
         </div>
-        <div className="text-right bg-primary/5 rounded-lg px-6 py-3 border border-primary/20">
-          <div className="text-4xl font-bold text-primary">{filteredTasks?.length || 0}</div>
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Tarefas encontradas</p>
+        <div className="text-right bg-primary/5 rounded-lg px-4 sm:px-6 py-2 sm:py-3 border border-primary/20 self-end sm:self-auto">
+          <div className="text-2xl sm:text-4xl font-bold text-primary">{filteredTasks?.length || 0}</div>
+          <p className="text-[10px] sm:text-xs text-muted-foreground font-medium uppercase tracking-wide">Tarefas encontradas</p>
         </div>
       </div>
 
       <Card className="border-0 shadow-lg overflow-hidden rounded-xl">
-        <CardHeader className="pb-6 pt-6 bg-gradient-to-r from-background to-muted/20 border-b">
+        <CardHeader className="pb-4 pt-4 sm:pb-6 sm:pt-6 px-3 sm:px-6 bg-gradient-to-r from-background to-muted/20 border-b">
           <TaskFilters
               taskAssigneeFilter={taskAssigneeFilter}
               setTaskAssigneeFilter={setTaskAssigneeFilter}
@@ -89,9 +89,12 @@ export default function TasksPage(props: Props) {
               members={members}
             />
         </CardHeader>
+      </Card>
+
+      <Card className="border-0 shadow-lg overflow-hidden rounded-xl">
         <CardContent className="p-0">
           {filteredTasks && filteredTasks.length > 0 ? (
-            <div className="w-full overflow-x-auto bg-gradient-to-b from-background to-muted/10">
+            <div className="w-full bg-gradient-to-b from-background to-muted/10">
               <TaskTable
                 filteredTasks={filteredTasks}
                 t={t}

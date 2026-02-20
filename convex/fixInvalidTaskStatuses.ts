@@ -20,7 +20,7 @@ export const fixInvalidStatuses = mutation({
     
     for (const task of allTasks) {
       // Se o status for vazio, nulo ou não estiver na lista de status válidos
-      if (!task.status || !validStatuses.includes(task.status)) {
+      if (!task.status || !validStatuses.includes(task.status as any)) {
         await ctx.db.patch(task._id, {
           status: TASK_STATUS.TODO, // Define como 'todo' por padrão
         });

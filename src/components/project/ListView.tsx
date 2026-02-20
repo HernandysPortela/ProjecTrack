@@ -1,5 +1,5 @@
 import { TaskCard } from "./TaskCard";
-import { Id } from "@/convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 
 interface ListViewProps {
   tasks: any[];

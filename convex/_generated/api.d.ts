@@ -29,6 +29,7 @@ import type * as exports from "../exports.js";
 import type * as fixInvalidTaskStatuses from "../fixInvalidTaskStatuses.js";
 import type * as fixTaskStatuses from "../fixTaskStatuses.js";
 import type * as fixUserRole from "../fixUserRole.js";
+import type * as folders from "../folders.js";
 import type * as http from "../http.js";
 import type * as invites from "../invites.js";
 import type * as kanban from "../kanban.js";
@@ -82,6 +83,7 @@ declare const fullApi: ApiFromModules<{
   fixInvalidTaskStatuses: typeof fixInvalidTaskStatuses;
   fixTaskStatuses: typeof fixTaskStatuses;
   fixUserRole: typeof fixUserRole;
+  folders: typeof folders;
   http: typeof http;
   invites: typeof invites;
   kanban: typeof kanban;

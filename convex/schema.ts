@@ -133,8 +133,11 @@ const schema = defineSchema(
       invitedBy: v.id("users"),
       workgroupId: v.id("workgroups"),
       token: v.string(),
-      status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("cancelled")),
+      status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("cancelled"), v.literal("expired")),
       role: roleValidator,
+      expiresAt: v.optional(v.number()),
+      sentAt: v.optional(v.number()),
+      workgroupName: v.optional(v.string()),
     })
       .index("by_email", ["email"])
       .index("by_token", ["token"])
@@ -185,6 +188,7 @@ const schema = defineSchema(
     // Projects
     projects: defineTable({
       workgroupId: v.id("workgroups"),
+      folderId: v.optional(v.id("folders")),
       ownerId: v.optional(v.id("users")),
       managerId: v.optional(v.id("users")),
       name: v.string(),
@@ -203,7 +207,8 @@ const schema = defineSchema(
       approvalStatus: v.optional(approvalStatusValidator),
     })
       .index("by_workgroup", ["workgroupId"])
-      .index("by_owner", ["ownerId"]),
+      .index("by_owner", ["ownerId"])
+      .index("by_folder", ["folderId"]),
 
     // Project members (individual user access)
     project_members: defineTable({
@@ -450,6 +455,18 @@ const schema = defineSchema(
       companyId: v.id("companies"),
       description: v.optional(v.string()),
     }).index("by_company", ["companyId"]),
+
+    // Folders for organizing projects
+    folders: defineTable({
+      workgroupId: v.id("workgroups"),
+      name: v.string(),
+      description: v.optional(v.string()),
+      color: v.optional(v.string()),
+      order: v.optional(v.number()),
+      isCollapsed: v.optional(v.boolean()),
+    })
+      .index("by_workgroup", ["workgroupId"])
+      .index("by_workgroup_and_order", ["workgroupId", "order"]),
 
     // Task Dependencies
     taskDependencies: defineTable({

@@ -205,15 +205,19 @@ export const sendInviteEmail = internalAction({
     name: v.string(),
     inviterName: v.string(),
     inviteLink: v.string(),
+    workgroupName: v.optional(v.string()),
+    roleName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { html, text } = generateInviteEmail({
       name: args.name,
       inviterName: args.inviterName,
       inviteLink: args.inviteLink,
+      workgroupName: args.workgroupName || "Workspace",
+      roleName: args.roleName || "Colaborador",
     });
     
-    await sendEmailNode(args.email, "Convite para participar do ProjecTrak", html, text);
+    await sendEmailNode(args.email, `Convite para participar do ProjecTrak - ${args.workgroupName || "Workspace"}`, html, text);
     return { success: true };
   },
 });
